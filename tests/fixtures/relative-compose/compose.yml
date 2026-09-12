@@ -1,0 +1,7 @@
+services:
+  fixture:
+    image: alpine:3.21
+    volumes:
+      - ./:/fixture:ro
+    command: ["sh", "-c", "test -f /fixture/marker.txt"]
+

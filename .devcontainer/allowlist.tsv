@@ -1,0 +1,8 @@
+# host repository path<TAB>container mount path
+# @workspace resolves to this repository's absolute path.
+# @workspace:/absolute/path resolves to an explicit absolute repository path.
+# @workspace-relative:<path> resolves a path relative to this repository.
+
+# examples
+# @workspace:/absolute/path/to/repo1	/workspaces/hack
+# @workspace-relative:../org/repo2		/workspaces/corp/repo2

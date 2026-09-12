@@ -1,0 +1,22 @@
+[tools]
+# Resolve these aliases when the image is built so the baseline tools track
+# the latest available releases without pinning project configuration.
+
+#　Languages
+node = "lts"
+
+# AI coding agents
+"npm:@anthropic-ai/claude-code" = "latest"
+"npm:@openai/codex" = "latest"
+
+# useful tools for agents
+# ast-grep installs the `sg` command.
+ast-grep = "latest"
+fd = "latest"
+gh = "latest"
+jq = "latest"
+rg = "latest"
+yq = "latest"
+
+# other useful tools for humanity
+tmux = "latest"

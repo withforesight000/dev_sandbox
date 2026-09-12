@@ -1,0 +1,17 @@
+{
+  "name": "dev_sandbox",
+  "dockerComposeFile": [
+    "compose.yml",
+    "compose.allowlist.local.yml"
+  ],
+  "service": "workspace",
+  "workspaceFolder": "/workspaces",
+  "initializeCommand": "bash .devcontainer/prepare-mounts",
+  "remoteUser": "dev",
+  // Keep the workspace user at UID 1000 so it can access the rootless
+  // daemon's shared socket. Dev Containers otherwise rewrites this user to
+  // the host UID, which makes the socket owned by the daemon inaccessible.
+  "updateRemoteUserUID": false,
+  "overrideCommand": false,
+  "shutdownAction": "stopCompose"
+}

@@ -1,0 +1,102 @@
+# Dev Container maintenance
+
+Use this playbook when changing `.devcontainer/`, `.devcontainer/allowlist.tsv`, resolver
+handling, nested Docker behavior, or security-sensitive wiring. It is also the
+checklist for validating those changes. The non-negotiable host-data and
+privilege rules remain in `AGENTS.md`.
+
+## Read before changing the architecture
+
+- `AGENTS.md`
+- `docs/usage.md` and `docs/usage.ja.md`
+- `docs/security-model.md` and `docs/security-model.ja.md`
+- the relevant files under `.devcontainer/prepare_mounts/`,
+  `.devcontainer/compose.yml`, and `.devcontainer/devcontainer.json`
+
+Inspect the working tree first and preserve unrelated user changes. Use
+`rg`/`rg --files` to locate relevant files. Do not use destructive Git
+commands, broad host mounts, or the outer Docker socket.
+
+## Architecture invariants
+
+- `workspace` is the work container. The Dev Containers client mounts the
+  current repository there automatically.
+- `docker` is a dedicated container running the rootless Docker daemon.
+  `ssh-agent` is an optional relay enabled only by an explicit
+  `SSH_AUTH_SOCK`.
+- Additional allowlist rows select existing Git repository roots. Each row
+  maps a host source path to an absolute container destination. The source and
+  destination are independent, so repositories can remain scattered on the
+  host while using an organized layout in the containers.
+- The same configured destination is mounted into both `workspace` and
+  `docker`. Destinations must be normalized, non-root, unique, and non-nested;
+  `/workspaces` itself is reserved.
+- `@workspace` is a special source specification. It is not needed for normal
+  current-workspace access, but it can add the current repository to generated
+  mounts, including `docker`, or assign it an explicit destination.
+- Generated `/workspaces/<name>` aliases are created only in `workspace`.
+  `docker` uses the configured destination itself. Compose commands involving
+  relative bind sources must run from that configured destination.
+- `prepare-mounts` must validate every policy before Compose starts and must
+  fail closed for missing, non-repository, broad, nested, duplicate, malformed,
+  or otherwise invalid entries.
+
+## Change workflow
+
+1. Confirm the change is within the repository's explicit scope and inspect
+   the current configuration, tests, and relevant documentation.
+2. Make the smallest scoped change with `apply_patch`. Keep generated files
+   out of the patch; `.devcontainer/compose.allowlist.local.yml` and
+   `.devcontainer/allowlist.local.tsv` are regenerated and ignored.
+3. Before opening or reopening the Dev Container, and after changing the
+   allowlist or resolver configuration, run:
+
+   ```bash
+   bash .devcontainer/prepare-mounts
+   ```
+
+4. For changes to scripts, Python preparation code, Compose configuration,
+   allowlist handling, or security-sensitive wiring, run:
+
+   ```bash
+   bash tests/validate.sh
+   ```
+
+5. Review the generated Compose configuration when relevant. Confirm that
+   repository mounts appear at the same configured destination in both
+   services, that the outer Docker socket is absent, and that the SSH relay is
+   absent unless explicitly enabled.
+
+## Resolver and nested-Docker checks
+
+Host-side preparation discovers DNS because the `docker` service cannot see the
+host resolver state. On macOS it uses `scutil --dns`; on Linux it uses
+`/etc/resolv.conf` with a `resolvectl dns` fallback. Loopback, unspecified,
+multicast, and link-local addresses are unusable for this purpose.
+
+`ROOTLESS_DOCKER_DNS` is a comma-separated override and takes precedence.
+`rootless-dockerd` requires the validated value, passes each address to the
+inner daemon as `--dns`, and must not use an outer embedded resolver such as
+`127.0.0.11` or silently fall back to public DNS.
+
+The workspace reaches the inner daemon through
+`DOCKER_HOST=unix:///docker-socket/docker.sock`. The socket is shared by a
+named volume outside RootlessKit's private `/run` copy-up namespace.
+`/var/run/docker.sock` is only a compatibility symlink to that inner socket.
+
+## Evidence and limitations
+
+`bash tests/validate.sh` provides primarily local static, unit, and Compose
+configuration evidence. It does not prove live DNS connectivity, external
+network behavior, or every deployment-specific security property.
+
+When runtime behavior matters and the Dev Container is running, separately:
+
+- verify that the daemon reports a rootless security option;
+- perform an actual DNS lookup from a container created by the inner daemon;
+- exercise a representative BuildKit/build path that reaches an external host,
+  such as one that runs `apt-get update`.
+
+Record whether each conclusion is based on static validation or live runtime
+evidence. Do not describe rootless Docker, the allowlist, or the named volumes
+as an absolute security guarantee.

@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+runtime_dir=${XDG_RUNTIME_DIR:-/run/user/1000}
+# Keep the shared socket outside /run. dockerd-rootless.sh invokes RootlessKit
+# with --copy-up=/run, which replaces /run in the daemon's private mount
+# namespace and hides a socket stored there from the workspace container.
+socket_dir=/docker-socket
+socket_path="$socket_dir/docker.sock"
+export XDG_RUNTIME_DIR="$runtime_dir"
+
+install -d -m 0700 "$runtime_dir"
+install -d -m 0700 "$socket_dir"
+
+# RootlessKit keeps its lock and state under XDG_RUNTIME_DIR by default. The
+# runtime directory and RootlessKit state must remain private to this Docker
+# daemon container. The Docker socket is kept outside /run because
+# dockerd-rootless.sh copies /run into RootlessKit's private mount namespace.
+rootless_state_dir=/tmp/devcontainer-dockerd-rootless
+containerd_state_dir=/tmp/devcontainer-containerd-rootless
+rm -rf -- "$rootless_state_dir" "$containerd_state_dir"
+install -d -m 0700 "$rootless_state_dir"
+export DOCKERD_ROOTLESS_ROOTLESSKIT_STATE_DIR="$rootless_state_dir"
+# dockerd-rootless.sh treats an existing containerd state directory as an
+# indication that the incompatible containerd-rootless.sh is running. Keep
+# this path container-private, but deliberately do not create it.
+export CONTAINERD_ROOTLESS_ROOTLESSKIT_STATE_DIR="$containerd_state_dir"
+
+# dockerd's PID file can outlive the Docker daemon process that created it.
+# Remove only a demonstrably stale PID file; never remove one belonging to a
+# live process.
+cleanup_stale_pid_file() {
+  local pid_file="$runtime_dir/docker.pid"
+  [[ -e "$pid_file" ]] || return 0
+
+  local pid
+  pid=$(<"$pid_file")
+  if [[ "$pid" =~ ^[1-9][0-9]*$ ]] && kill -0 "$pid" 2>/dev/null; then
+    local process_name
+    process_name=$(ps -p "$pid" -o comm= 2>/dev/null | tr -d '[:space:]' || true)
+    case "$process_name" in
+      dockerd|dockerd-rootless.sh|rootlesskit|containerd|containerd-shim*)
+        echo "rootless Docker: refusing to remove $pid_file; $process_name process $pid is still running" >&2
+        exit 1
+        ;;
+    esac
+  fi
+
+  rm -f -- "$pid_file"
+}
+
+cleanup_stale_pid_file
+
+# Discard daemon-only runtime state after the PID check above has established
+# that no previous rootless daemon is still running. Keep the user's Docker
+# data volume intact.
+if [[ -d "$runtime_dir/docker" ]]; then
+  # A previous rootless daemon can leave libnetwork directories without the
+  # owner execute bit. Restore only the current user's permissions so the
+  # daemon-only tree can be removed without broadening access to other users.
+  chmod -R u+rwX -- "$runtime_dir/docker" || true
+fi
+rm -rf -- "$runtime_dir/docker"
+rm -f -- "$socket_path"
+
+# DNS discovery belongs to the host-side prepare-mounts.py command. It can see
+# macOS resolver state and the host's Linux resolver configuration, while this
+# Docker daemon container can see only its own namespace. Do not reimplement discovery here:
+# without the validated bridge from prepare-mounts, fail instead of using the
+# outer embedded resolver or silently falling back to public DNS.
+declare -a dns_servers=()
+if [[ -z "${ROOTLESS_DOCKER_DNS:-}" ]]; then
+  echo "rootless Docker: ROOTLESS_DOCKER_DNS is required; run .devcontainer/prepare-mounts first" >&2
+  exit 1
+fi
+
+dns_values=${ROOTLESS_DOCKER_DNS//,/ }
+read -r -a dns_servers <<< "$dns_values"
+
+declare -a dns_options=()
+for dns_server in "${dns_servers[@]}"; do
+  dns_server=${dns_server#${dns_server%%[![:space:]]*}}
+  dns_server=${dns_server%${dns_server##*[![:space:]]}}
+  [[ -n "$dns_server" ]] || continue
+  dns_options+=(--dns "$dns_server")
+done
+
+if [[ ${#dns_options[@]} -eq 0 ]]; then
+  echo "rootless Docker: no usable upstream DNS server found; set ROOTLESS_DOCKER_DNS" >&2
+  exit 1
+fi
+
+printf 'rootless Docker: using DNS server(s):'
+printf ' %s' "${dns_servers[@]}"
+printf '\n'
+exec dockerd-rootless.sh "${dns_options[@]}" --host="unix://$socket_path"

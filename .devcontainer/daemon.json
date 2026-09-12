@@ -1,0 +1,11 @@
+{
+  "default-runtime": "runc-no-keyring",
+  "runtimes": {
+    "runc-no-keyring": {
+      "runtimeType": "io.containerd.runc.v2",
+      "options": {
+        "NoNewKeyring": true
+      }
+    }
+  }
+}

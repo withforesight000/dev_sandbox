@@ -1,0 +1,82 @@
+services:
+  workspace:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    init: true
+    command: ["sleep", "infinity"]
+    depends_on:
+      docker:
+        condition: service_healthy
+    user: dev
+    working_dir: /
+    environment:
+      DOCKER_CONFIG: /home/dev/.config/docker-cli
+      DOCKER_HOST: unix:///docker-socket/docker.sock
+      XDG_RUNTIME_DIR: /run/user/1000
+    volumes:
+      # /run is copied into RootlessKit's private mount namespace by
+      # dockerd-rootless.sh, so the shared socket must use a top-level path.
+      - type: volume
+        source: docker-socket-share
+        target: /docker-socket
+      - type: volume
+        source: mise-cache
+        target: /home/dev/.cache/mise
+      - type: volume
+        source: mise-data
+        target: /home/dev/.local/share/mise
+        volume:
+          nocopy: false
+      - type: volume
+        source: codex-home
+        target: /home/dev/.codex
+      - type: volume
+        source: claude-home
+        target: /home/dev/.claude
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+
+  docker:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    entrypoint: ["/usr/local/bin/rootless-dockerd"]
+    environment:
+      DOCKER_HOST: unix:///docker-socket/docker.sock
+      ROOTLESS_DOCKER_DNS: "${ROOTLESS_DOCKER_DNS:-}"
+      XDG_RUNTIME_DIR: /run/user/1000
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          docker info --format '{{json .SecurityOptions}}' 2>/dev/null |
+          grep -q '"name=rootless"'
+      interval: 1s
+      timeout: 2s
+      start_period: 5s
+      retries: 60
+    privileged: true
+    security_opt:
+      - seccomp:unconfined
+    user: dev
+    working_dir: /
+    volumes:
+      - type: volume
+        source: docker-socket-share
+        target: /docker-socket
+      - type: volume
+        source: docker-data
+        target: /home/dev/.local/share/docker
+
+volumes:
+  docker-data:
+  docker-socket-share:
+  mise-cache:
+  mise-data:
+  codex-home:
+  claude-home:
