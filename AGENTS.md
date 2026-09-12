@@ -18,6 +18,10 @@ easier.
 - Treat `.devcontainer/allowlist.tsv` as a reviewed access policy. Do not
   change it merely to bypass a restriction, and never replace it with a broad
   host-directory mount.
+- Treat local changes to `.devcontainer/allowlist.tsv` as user-specific
+  working state. Do not include those changes in commits; preserve them in the
+  working tree and leave the tracked policy unchanged unless the user
+  explicitly requests a policy update.
 - Use the inner rootless Docker daemon for Docker commands. Do not recover,
   mount, or otherwise use the outer Docker Desktop or Linux Docker Engine
   socket.

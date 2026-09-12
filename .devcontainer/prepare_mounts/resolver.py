@@ -10,6 +10,7 @@ from .models import DnsServers
 from .ports import CommandRunner
 
 _REGEX_ESCAPE = chr(92)
+SYSTEMD_RESOLV_CONF_PATH = Path("/run/systemd/resolve/resolv.conf")
 SCUTIL_NAMESERVER_PATTERN = re.compile(
     f"^{_REGEX_ESCAPE}s*nameserver{_REGEX_ESCAPE}[{_REGEX_ESCAPE}d+{_REGEX_ESCAPE}]"
     f"{_REGEX_ESCAPE}s*:{_REGEX_ESCAPE}s*({_REGEX_ESCAPE}S+){_REGEX_ESCAPE}s*$"
@@ -24,12 +25,14 @@ class HostResolverDetector:
         command_runner: CommandRunner,
         platform_name: str | None = None,
         resolv_conf_path: Path = Path("/etc/resolv.conf"),
+        systemd_resolv_conf_path: Path = SYSTEMD_RESOLV_CONF_PATH,
     ) -> None:
         self._command_runner = command_runner
         self._platform_name = (
             platform_name if platform_name is not None else sys.platform
         )
         self._resolv_conf_path = resolv_conf_path
+        self._systemd_resolv_conf_path = systemd_resolv_conf_path
 
     def detect(self, explicit_override: str | None) -> DnsServers | None:
         """Prefer an explicit override, then use the host's platform resolver APIs."""
@@ -45,6 +48,9 @@ class HostResolverDetector:
 
         if self._platform_name.startswith("linux"):
             servers = self._detect_from_resolv_conf()
+            if servers:
+                return servers
+            servers = self._detect_from_resolv_conf(self._systemd_resolv_conf_path)
             if servers:
                 return servers
             return self._detect_with_resolvectl()
@@ -81,9 +87,10 @@ class HostResolverDetector:
             values.extend(line.split("DNS Servers:", 1)[1].split())
         return DnsServers.from_detected(values)
 
-    def _detect_from_resolv_conf(self) -> DnsServers | None:
+    def _detect_from_resolv_conf(self, path: Path | None = None) -> DnsServers | None:
+        resolver_path = path if path is not None else self._resolv_conf_path
         try:
-            content = self._resolv_conf_path.read_text(encoding="utf-8")
+            content = resolver_path.read_text(encoding="utf-8")
         except (OSError, UnicodeError):
             return None
 

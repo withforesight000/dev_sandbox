@@ -145,10 +145,11 @@ source を解決するため、既存の Compose ファイルで相対パスの 
 
 rootless デーモンは、内部デーモンが作成したコンテナへ利用可能な上流 DNS
 サーバーを渡します。ホスト側の `prepare-mounts` は、macOS では `scutil --dns`、
-Linux では `/etc/resolv.conf` と、任意の `resolvectl dns` fallback を使って、
-プラットフォームの resolver 設定から DNS サーバーを検出します。loopback や
-stub resolver のアドレスは、内部コンテナの namespace から到達できないため
-転送されません。
+Linux では `/etc/resolv.conf` から、プラットフォームの resolver 設定を使って
+DNS サーバーを検出します。Linux が systemd-resolved を使っている場合は、
+`/run/systemd/resolve/resolv.conf` の上流設定を読み取り、それでも見つからない
+場合に任意の `resolvectl dns` fallback を試します。loopback や stub resolver の
+アドレスは、内部コンテナの namespace から到達できないため転送されません。
 
 `docker` サービスはホストの DNS 検出を繰り返しません。`prepare-mounts` が検証
 して生成した値を必要とします。自動検出が十分でない場合は、Docker の Linux VM

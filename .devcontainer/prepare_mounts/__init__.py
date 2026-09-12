@@ -16,11 +16,16 @@ from .models import (
     PreparationPaths,
 )
 from .ports import CommandRunner, GeneratedFileWriter, ResolverDetector
-from .resolver import SCUTIL_NAMESERVER_PATTERN, HostResolverDetector
+from .resolver import (
+    SCUTIL_NAMESERVER_PATTERN,
+    SYSTEMD_RESOLV_CONF_PATH,
+    HostResolverDetector,
+)
 from .writer import AtomicGeneratedFileWriter
 
 __all__ = [
     "SCUTIL_NAMESERVER_PATTERN",
+    "SYSTEMD_RESOLV_CONF_PATH",
     "AllowlistError",
     "AllowlistValidator",
     "AllowlistedRepository",

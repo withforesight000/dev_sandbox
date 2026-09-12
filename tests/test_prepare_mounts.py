@@ -424,6 +424,7 @@ class PrepareMountsTests(unittest.TestCase):
                 runner,
                 platform_name="linux",
                 resolv_conf_path=resolv_conf,
+                systemd_resolv_conf_path=Path("/nonexistent/systemd-resolv.conf"),
             )
 
             servers = detector.detect(None)
@@ -431,6 +432,33 @@ class PrepareMountsTests(unittest.TestCase):
             assert servers is not None
             self.assertEqual(tuple(servers), ("192.0.2.53", "2001:db8::53"))
             self.assertEqual(runner.commands, [["resolvectl", "dns"]])
+
+    def test_linux_uses_systemd_resolved_upstream_file_before_resolvectl(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            resolv_conf = Path(temporary_directory) / "stub-resolv.conf"
+            systemd_resolv_conf = Path(temporary_directory) / "resolv.conf"
+            resolv_conf.write_text(
+                "nameserver 127.0.0.53\n",
+                encoding="utf-8",
+            )
+            systemd_resolv_conf.write_text(
+                "nameserver 10.0.0.53\nnameserver 2001:db8::53\n",
+                encoding="utf-8",
+            )
+            runner = ResolverCommandRunner({})
+            detector = prepare_mounts.HostResolverDetector(
+                runner,
+                platform_name="linux",
+                resolv_conf_path=resolv_conf,
+                systemd_resolv_conf_path=systemd_resolv_conf,
+            )
+
+            servers = detector.detect(None)
+
+            self.assertIsNotNone(servers)
+            assert servers is not None
+            self.assertEqual(tuple(servers), ("10.0.0.53", "2001:db8::53"))
+            self.assertEqual(runner.commands, [])
 
     def test_no_usable_resolver_returns_none_without_public_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -450,6 +478,7 @@ class PrepareMountsTests(unittest.TestCase):
                 runner,
                 platform_name="linux",
                 resolv_conf_path=resolv_conf,
+                systemd_resolv_conf_path=Path("/nonexistent/systemd-resolv.conf"),
             )
 
             self.assertIsNone(detector.detect(None))
