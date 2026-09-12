@@ -83,6 +83,7 @@ class DnsServers:
             or address.is_unspecified
             or address.is_multicast
             or address.is_link_local
+            or address.is_reserved
         )
 
     @classmethod

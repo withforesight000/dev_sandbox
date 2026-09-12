@@ -20,7 +20,12 @@ from .writer import AtomicGeneratedFileWriter
 class SubprocessCommandRunner:
     """Production command runner used for host command detection."""
 
-    def run(self, command: Sequence[str]) -> subprocess.CompletedProcess[str]:
+    def run(
+        self,
+        command: Sequence[str],
+        *,
+        timeout: float | None = None,
+    ) -> subprocess.CompletedProcess[str]:
         """Run command while allowing the validator to handle its exit code."""
 
         return subprocess.run(
@@ -28,6 +33,7 @@ class SubprocessCommandRunner:
             check=False,
             capture_output=True,
             encoding="utf-8",
+            timeout=timeout,
         )
 
 

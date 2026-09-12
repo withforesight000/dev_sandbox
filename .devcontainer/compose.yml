@@ -48,7 +48,6 @@ services:
     entrypoint: ["/usr/local/bin/rootless-dockerd"]
     environment:
       DOCKER_HOST: unix:///docker-socket/docker.sock
-      ROOTLESS_DOCKER_DNS: "${ROOTLESS_DOCKER_DNS:-}"
       XDG_RUNTIME_DIR: /run/user/1000
     healthcheck:
       test:

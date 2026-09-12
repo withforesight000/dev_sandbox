@@ -150,11 +150,16 @@ DNS サーバーを検出します。Linux が systemd-resolved を使ってい�
 `/run/systemd/resolve/resolv.conf` の上流設定を読み取り、それでも見つからない
 場合に任意の `resolvectl dns` fallback を試します。loopback や stub resolver の
 アドレスは、内部コンテナの namespace から到達できないため転送されません。
+また、unspecified、multicast、link-local、reserved のアドレスも除外します。
+ホスト側の検出だけでは、Docker の Linux VM や内部 namespace から resolver に
+到達できることまでは証明できないため、ネットワーク到達性が重要な場合は実行時
+の DNS lookup も必要です。
 
 `docker` サービスはホストの DNS 検出を繰り返しません。`prepare-mounts` が検証
-して生成した値を必要とします。自動検出が十分でない場合は、Docker の Linux VM
-から到達できる resolver アドレスをカンマ区切りで `ROOTLESS_DOCKER_DNS` に設定
-し、Dev Container を再開してください。
+して生成した値を必要とし、ベース Compose からホストの環境変数を直接渡すことは
+ありません。自動検出が十分でない場合は、Docker の Linux VM から到達できる
+resolver アドレスをカンマ区切りで `ROOTLESS_DOCKER_DNS` に設定し、Dev Container
+を再開してください。
 
 ```bash
 export ROOTLESS_DOCKER_DNS=<reachable-dns-server>

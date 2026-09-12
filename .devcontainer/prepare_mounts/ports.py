@@ -14,7 +14,12 @@ if TYPE_CHECKING:
 class CommandRunner(Protocol):
     """Run an external command and return its completed process result."""
 
-    def run(self, command: Sequence[str]) -> subprocess.CompletedProcess[str]:
+    def run(
+        self,
+        command: Sequence[str],
+        *,
+        timeout: float | None = None,
+    ) -> subprocess.CompletedProcess[str]:
         """Run command without raising for a non-zero exit code."""
         ...
 

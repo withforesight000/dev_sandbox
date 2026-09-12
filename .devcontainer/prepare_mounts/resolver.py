@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from .ports import CommandRunner
 
 _REGEX_ESCAPE = chr(92)
 SYSTEMD_RESOLV_CONF_PATH = Path("/run/systemd/resolve/resolv.conf")
+RESOLVER_COMMAND_TIMEOUT_SECONDS = 5.0
 SCUTIL_NAMESERVER_PATTERN = re.compile(
     f"^{_REGEX_ESCAPE}s*nameserver{_REGEX_ESCAPE}[{_REGEX_ESCAPE}d+{_REGEX_ESCAPE}]"
     f"{_REGEX_ESCAPE}s*:{_REGEX_ESCAPE}s*({_REGEX_ESCAPE}S+){_REGEX_ESCAPE}s*$"
@@ -59,8 +61,11 @@ class HostResolverDetector:
 
     def _detect_with_scutil(self) -> DnsServers | None:
         try:
-            result = self._command_runner.run(["/usr/sbin/scutil", "--dns"])
-        except (OSError, UnicodeError):
+            result = self._command_runner.run(
+                ["/usr/sbin/scutil", "--dns"],
+                timeout=RESOLVER_COMMAND_TIMEOUT_SECONDS,
+            )
+        except (OSError, UnicodeError, subprocess.TimeoutExpired):
             return None
         if result.returncode != 0:
             return None
@@ -74,8 +79,11 @@ class HostResolverDetector:
 
     def _detect_with_resolvectl(self) -> DnsServers | None:
         try:
-            result = self._command_runner.run(["resolvectl", "dns"])
-        except (OSError, UnicodeError):
+            result = self._command_runner.run(
+                ["resolvectl", "dns"],
+                timeout=RESOLVER_COMMAND_TIMEOUT_SECONDS,
+            )
+        except (OSError, UnicodeError, subprocess.TimeoutExpired):
             return None
         if result.returncode != 0:
             return None

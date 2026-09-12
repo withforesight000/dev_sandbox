@@ -108,6 +108,10 @@ if rg -n 'mise-project-tools|mise-install-allowed|mise_project_tools_' .devconta
   exit 1
 fi
 rg -q 'DOCKER_CONFIG' .devcontainer/Dockerfile .devcontainer/compose.yml
+if rg -n 'ROOTLESS_DOCKER_DNS:' .devcontainer/compose.yml; then
+  echo 'the base Compose file must not inject an unvalidated host DNS override' >&2
+  exit 1
+fi
 rg -q 'socat' .devcontainer/ssh-agent.Dockerfile
 rg -q 'ROOTLESS_DOCKER_DNS' .devcontainer/compose.yml .devcontainer/rootless-dockerd
 rg -q 'unix:///docker-socket/docker.sock' .devcontainer/Dockerfile .devcontainer/compose.yml

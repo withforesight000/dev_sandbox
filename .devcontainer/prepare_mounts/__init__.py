@@ -17,6 +17,7 @@ from .models import (
 )
 from .ports import CommandRunner, GeneratedFileWriter, ResolverDetector
 from .resolver import (
+    RESOLVER_COMMAND_TIMEOUT_SECONDS,
     SCUTIL_NAMESERVER_PATTERN,
     SYSTEMD_RESOLV_CONF_PATH,
     HostResolverDetector,
@@ -24,6 +25,7 @@ from .resolver import (
 from .writer import AtomicGeneratedFileWriter
 
 __all__ = [
+    "RESOLVER_COMMAND_TIMEOUT_SECONDS",
     "SCUTIL_NAMESERVER_PATTERN",
     "SYSTEMD_RESOLV_CONF_PATH",
     "AllowlistError",
