@@ -23,9 +23,9 @@
 `.devcontainer/allowlist.tsv` に、対象にする追加リポジトリを1行に1件ずつ
 記述します。
 
-```text
-/absolute/path/to/repository<TAB>/container/mount/path
-```
+1列目には、ホスト上に実在する Git リポジトリのルートを示す絶対パスを指定します。
+2列は1つのリテラルなタブ文字（`U+0009`）で区切り、`<TAB>` という文字列や
+スペースは使いません。
 
 標準構成では、`dev_sandbox` リポジトリ自身は現在の workspace であるため、
 allowlist に登録する必要はありません。エージェントにアクセスさせたい追加
@@ -42,11 +42,10 @@ Dev Containers クライアントは、生成された allowlist のマウント
 
 追加リポジトリには、存在する Git リポジトリのルートを指定してください。
 複数のリポジトリを含む広い親ディレクトリは指定しないでください。ホスト側
-のパスは絶対パスである必要があります。現在の workspace や、そこからの相対
-パスには、次の特殊な形式を使えます。
+のパスは絶対パスである必要があります。次の source 形式を使えます。
 
 - `@workspace` — 現在のリポジトリの絶対パスに解決されます。
-- `@workspace:/absolute/path/to/repository` — 明示した絶対パスを指定します。
+- `@workspace:/absolute/path/to/repository` — 明示した絶対パスを source として指定します。現在のリポジトリに限定されません。
 - `@workspace-relative:../org/repo` — 現在のリポジトリからの相対パスを指定します。
 
 パスは Compose の起動前にホスト上で解決・検証されます。存在しないパス、
@@ -56,19 +55,11 @@ Git リポジトリでないパス、入れ子になったパス、重複する�
 ### コンテナ側のマウント先
 
 2列目は必須で、コンテナ内の正規化された絶対ディレクトリパスを指定します。
-ファイルシステムのルート `/` と `/workspaces` 自体は予約されています。
-マウント先は重複できず、別のマウント先の内側にもできません。同じマウント先
+ファイルシステムのルート `/` と `/workspaces` 自体は予約されており、末尾の `/` は
+使えません。マウント先は重複できず、別のマウント先の内側にもできません。同じマウント先
 が `workspace` サービスと `docker` サービスの両方で使われるため、リポジトリ
 をホスト上の既存の場所に置いたまま、両方のコンテナ内で整理された構成に
 できます。
-
-例えば、ホスト上の異なる場所に保存されているリポジトリを、Dev Container
-内では予測しやすいパスにまとめられます。
-
-```text
-/Users/you/work/client/api<TAB>/workspaces/api
-/Volumes/team/shared-lib<TAB>/workspaces/shared-lib
-```
 
 設定したマウント先が、`workspace` と `docker` の両サービスにおける canonical な
 リポジトリパスになります。移動用 alias や追加のシンボリックリンクは作成しません。
@@ -113,11 +104,12 @@ Docker Desktop では、新しく追加するリポジトリごとに、コン�
 例えば次のように確認できます。
 
 ```sh
-devcontainer exec --workspace-folder . bash -lc \
-  'test -d /workspaces/<destination> && ls -ld /workspaces/<destination>'
+devcontainer exec --workspace-folder . ls -ld /workspaces/api
 ```
 
-allowlist から削除した宛先が残っていないことも確認してください。
+`/workspaces/api` は2列目に設定した完全な宛先（先頭のパス要素を含む）へ置き換えてください。
+`/workspaces` 外の宛先も、設定した絶対パスをそのまま使って確認します。allowlist から削除した
+宛先が残っていないことも確認してください。
 
 ## 実行時のバージョン
 

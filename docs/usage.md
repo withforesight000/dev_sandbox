@@ -22,9 +22,9 @@ you expose.
 
 Add one explicit repository per row to `.devcontainer/allowlist.tsv`:
 
-```text
-/absolute/path/to/repository<TAB>/container/mount/path
-```
+The first column must be an absolute path to an existing Git repository root.
+The two columns are separated by one literal tab character (`U+0009`), not the
+text `<TAB>` and not spaces.
 
 The `dev_sandbox` repository is the current workspace and does not need an
 allowlist row for the standard setup. Add only the other repositories that the
@@ -42,11 +42,11 @@ or bind source.
 
 An additional repository must be an existing Git repository root. Do not add a
 broad parent directory containing multiple repositories. Host paths must be
-absolute. You can use these special forms for the current workspace or a path
-relative to it:
+absolute. You can use these source forms:
 
 - `@workspace` resolves to the current repository's absolute path.
-- `@workspace:/absolute/path/to/repository` names an explicit absolute path.
+- `@workspace:/absolute/path/to/repository` names an explicit absolute source
+  path; it is not limited to the current repository.
 - `@workspace-relative:../org/repo` names a path relative to the current
   repository.
 
@@ -57,18 +57,10 @@ paths, non-repository paths, nested paths, and duplicate paths fail closed.
 
 The second column is mandatory and must be an absolute, normalized directory
 path inside the containers. The filesystem root and `/workspaces` itself are
-reserved. Destinations must be unique and must not be nested. The same
-destination is used in the `workspace` service and the `docker` service, so a
-repository can stay at its existing host location while appearing in an
-organized layout inside both containers.
-
-For example, repositories stored in unrelated host directories can be grouped
-under predictable paths inside the Dev Container:
-
-```text
-/Users/you/work/client/api<TAB>/workspaces/api
-/Volumes/team/shared-lib<TAB>/workspaces/shared-lib
-```
+reserved, and trailing slashes are not allowed. Destinations must be unique and
+must not be nested. The same destination is used in the `workspace` service and
+the `docker` service, so a repository can stay at its existing host location
+while appearing in an organized layout inside both containers.
 
 The configured mount destination is the canonical repository path in both
 services; no navigation aliases or additional symlinks are created. For nested
@@ -116,10 +108,12 @@ After reconnecting, verify the configured destinations from the workspace
 terminal. For example, with the CLI:
 
 ```sh
-devcontainer exec --workspace-folder . bash -lc \
-  'test -d /workspaces/<destination> && ls -ld /workspaces/<destination>'
+devcontainer exec --workspace-folder . ls -ld /workspaces/api
 ```
 
+Replace `/workspaces/api` with the complete configured destination from the
+second column, including its leading path components. Destinations outside
+`/workspaces` must be checked using their configured absolute path as well.
 Also verify that destinations removed from the allowlist are no longer present.
 
 ## Runtime versions
