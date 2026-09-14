@@ -7,6 +7,18 @@ what remains visible to an AI agent, and which deployment assumptions still
 require trust. It is a repository-exposure boundary, not a complete substitute
 for a microVM or a deny-by-default network policy.
 
+## Table of contents
+
+- [Security goals](#security-goals)
+- [What this protects](#what-this-protects)
+- [What this does not protect](#what-this-does-not-protect)
+- [Trust assumptions](#trust-assumptions)
+  - [Outer container runtime](#outer-container-runtime)
+  - [Existing repository workflows](#existing-repository-workflows)
+  - [Network access](#network-access)
+- [Agent state and credentials](#agent-state-and-credentials)
+- [Related comparison](#related-comparison)
+
 ## Security goals
 
 The normal setup is designed to keep unrelated host data out of the agent's

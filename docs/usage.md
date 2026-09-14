@@ -6,6 +6,18 @@ This guide explains how to select repositories, start the Dev Container, and
 use its tools without changing the project configuration of the repositories
 you expose.
 
+## Table of contents
+
+- [Configure repository access](#configure-repository-access)
+  - [Host source paths](#host-source-paths)
+  - [Container destinations](#container-destinations)
+- [Applying allowlist changes](#applying-allowlist-changes)
+- [Runtime versions](#runtime-versions)
+- [Agents and credentials](#agents-and-credentials)
+- [Docker and Compose](#docker-and-compose)
+- [DNS for inner containers](#dns-for-inner-containers)
+- [Troubleshooting](#troubleshooting)
+
 ## Configure repository access
 
 Add one explicit repository per row to `.devcontainer/allowlist.tsv`:
