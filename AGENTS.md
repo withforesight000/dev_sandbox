@@ -49,9 +49,10 @@ easier.
   `workspace` access. `@workspace` is a special allowlist source
   specification for adding it to generated mounts, including `docker`, or
   assigning it an explicit destination.
-- Generated `/workspaces/<name>` aliases exist only in `workspace`.
-  `docker` uses the configured destination itself. Run Compose workflows from
-  the configured destination when relative bind sources are involved.
+- Allowlisted repositories use their configured destinations directly in both
+  `workspace` and `docker`; no navigation aliases are generated. Run Compose
+  workflows from the configured destination when relative bind sources are
+  involved.
 
 ## Required workflow
 
@@ -68,8 +69,9 @@ easier.
   ```
 
 - `prepare-mounts` validates the policy before Compose starts and regenerates
-  the ignored `.devcontainer/compose.allowlist.local.yml` and
-  `.devcontainer/allowlist.local.tsv`. Never commit or hand-edit those files.
+  the ignored `.devcontainer/compose.allowlist.local.yml`. Never commit or
+  hand-edit that file. The legacy `.devcontainer/allowlist.local.tsv` is not
+  consumed by the current container startup path.
 
 ## Validation
 
@@ -83,6 +85,11 @@ easier.
 - This is primarily local static, unit, and Compose-configuration validation.
   It does not prove live DNS connectivity, external network behavior, or every
   deployment-specific security property.
+- Repository test and validation scripts, including `tests/validate.sh`, must
+  use synthetic temporary fixtures with neutral names such as `repo-alpha` and
+  `repo-beta`. Do not invoke the production `.devcontainer/prepare-mounts`
+  command from those scripts: it reads the user's allowlist and its generated
+  Compose or SSH-agent paths may contain sensitive host information.
 - When runtime behavior matters and the Dev Container is running, follow the
   runtime checklist in
   `.agents/skills/devcontainer-maintenance/SKILL.md`: verify the daemon is rootless,

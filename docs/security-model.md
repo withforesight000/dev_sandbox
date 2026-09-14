@@ -19,6 +19,16 @@ including the `docker` service.
 
 Changing a repository's container destination only organizes its in-container
 view. It does not reduce the access the agent has to that repository's files.
+The configured destination is used directly; no navigation alias is generated.
+For nested destinations under `/workspaces`, synthetic parent directories are
+ephemeral `tmpfs` mounts and do not expose a host parent directory.
+
+Host-side preparation resolves the allowlist and writes generated Compose
+configuration containing the selected host source paths. Repository test and
+validation scripts, including `tests/validate.sh`, must therefore use synthetic
+temporary repositories with neutral names such as `repo-alpha` and `repo-beta`.
+They must not run the production preparation command against a user's personal
+allowlist or publish its generated output.
 
 ## What this protects
 
