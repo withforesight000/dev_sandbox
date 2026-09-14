@@ -68,9 +68,45 @@ The host running the Dev Containers client must provide `python3`. Allowlist
 preparation uses only Python's standard library and does not require
 third-party packages.
 
-Reopen or rebuild the Dev Container after changing the allowlist. The startup
-script regenerates `.devcontainer/compose.allowlist.local.yml`; this file is
-ignored and must not be committed or hand-edited.
+After changing `.devcontainer/allowlist.tsv`, apply the change from a host
+terminal at the repository root, not from a terminal attached to the Dev
+Container:
+
+```sh
+bash .devcontainer/prepare-mounts
+```
+
+If this command fails, fix the allowlist and run it again; do not reopen or
+recreate the container using the previous generated configuration. After it
+succeeds, recreate the container so additions and removals are applied:
+
+- CLI: `devcontainer up --workspace-folder . --remove-existing-container`.
+- VS Code: run `Dev Containers: Rebuild Container`.
+- Zed: close the remote project, run the CLI command above from the host, and
+  reopen it with `Project: Open Remote`.
+
+The Dev Containers client also runs this command through `initializeCommand`
+during startup, but that hook does not replace explicit container recreation
+when the mount policy changes. The command regenerates
+`.devcontainer/compose.allowlist.local.yml`; this file is ignored and must not
+be committed or hand-edited. An allowlist-only change does not require an image
+rebuild. For image or Compose changes, use the rebuild command supported by
+your client; check the installed Dev Containers CLI options with
+`devcontainer up --help` rather than assuming a `--build` option.
+
+On Docker Desktop, grant File Sharing access to each newly added repository
+before recreating the container. Share the repository path itself, not a broad
+parent directory.
+
+After reconnecting, verify the configured destinations from the workspace
+terminal. For example, with the CLI:
+
+```sh
+devcontainer exec --workspace-folder . bash -lc \
+  'test -d /workspaces/<destination> && ls -ld /workspaces/<destination>'
+```
+
+Also verify that destinations removed from the allowlist are no longer present.
 
 ## Runtime versions
 

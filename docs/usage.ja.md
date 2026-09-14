@@ -68,9 +68,42 @@ Dev Containers クライアントを実行するホストには `python3` が必
 allowlist の準備処理は Python の標準ライブラリだけを使い、サードパーティー
 パッケージを必要としません。
 
-allowlist を変更したら、Dev Container を再開または再ビルドしてください。
-起動スクリプトは `.devcontainer/compose.allowlist.local.yml` を再生成します。
-これは Git の対象外で、コミットしたり手で編集したりしないでください。
+`.devcontainer/allowlist.tsv` を変更したら、Dev Container に接続した
+ターミナルではなく、リポジトリのルートにいるホスト側のターミナルで
+次のコマンドを実行して変更を反映します。
+
+```sh
+bash .devcontainer/prepare-mounts
+```
+
+このコマンドが失敗した場合は、allowlist を修正して再実行してください。以前の生成設定の
+まま Dev Container を再開・再作成してはいけません。成功した後、追加・削除を反映するために
+コンテナを再作成します。
+
+- CLI: `devcontainer up --workspace-folder . --remove-existing-container`
+- VS Code: `Dev Containers: Rebuild Container` を実行
+- Zed: リモートプロジェクトを閉じ、ホスト側で上記の CLI コマンドを実行してから、
+  `Project: Open Remote` で再度開く
+
+Dev Containers クライアントは起動時の `initializeCommand` からもこのコマンドを実行しますが、
+マウントポリシーを変更した場合に明示的なコンテナ再作成を省略することはできません。この処理は
+`.devcontainer/compose.allowlist.local.yml` を再生成しますが、これは Git の対象外であり、
+コミットしたり手で編集したりしないでください。allowlist だけを変更した場合、イメージの再ビルドは
+不要です。イメージや Compose 設定を変更した場合は、利用するクライアントが提供する再ビルド手順を
+使ってください。Dev Containers CLI のオプションは `devcontainer up --help` で確認できます。
+
+Docker Desktop では、新しく追加するリポジトリごとに、コンテナを再作成する前に File Sharing の
+許可を追加してください。複数のリポジトリを含む広い親ディレクトリは共有しないでください。
+
+再接続後は、workspace のターミナルから設定した宛先が存在することを確認してください。CLI では
+例えば次のように確認できます。
+
+```sh
+devcontainer exec --workspace-folder . bash -lc \
+  'test -d /workspaces/<destination> && ls -ld /workspaces/<destination>'
+```
+
+allowlist から削除した宛先が残っていないことも確認してください。
 
 ## 実行時のバージョン
 

@@ -124,7 +124,7 @@ alias や追加のシンボリックリンクは生成されません。`/worksp
 
 ### 2. Dev Container を起動する
 
-リポジトリのルートから実行します。
+ホスト側のターミナルを使い、リポジトリのルートから実行します。
 
 ```sh
 bash .devcontainer/prepare-mounts
@@ -132,7 +132,30 @@ devcontainer up --workspace-folder .
 devcontainer exec --workspace-folder . bash
 ```
 
-Dev Container クライアントは、起動時の `initializeCommand` からも `prepare-mounts` を実行します。このスクリプトは `.devcontainer/` 配下の Git で無視されるローカルファイルをアトミックに再生成します。生成ファイルをコミットしたり手で編集したりしないでください。イメージや Compose 設定を変更した後は `--build` を追加して再ビルドします。
+Dev Container クライアントは、起動時の `initializeCommand` からも `prepare-mounts` を実行します。後から `.devcontainer/allowlist.tsv` を更新した場合は、Dev Container に接続したターミナルではなく、ホスト側のターミナルで変更を反映します。
+
+```sh
+bash .devcontainer/prepare-mounts
+```
+
+このコマンドが失敗した場合は、allowlist を修正して再実行してください。以前の生成設定のまま Dev Container を再開・再作成してはいけません。成功した後、追加・削除を反映するためにコンテナを再作成します。
+
+- CLI: `devcontainer up --workspace-folder . --remove-existing-container`
+- VS Code: `Dev Containers: Rebuild Container` を実行
+- Zed: リモートプロジェクトを閉じ、ホスト側で上記の CLI コマンドを実行してから、`Project: Open Remote` で再度開く
+
+起動時には `initializeCommand` も実行されますが、マウントポリシーを変更した場合に明示的なコンテナ再作成を省略することはできません。このスクリプトは `.devcontainer/` 配下の Git で無視されるローカルファイルをアトミックに再生成します。生成ファイルをコミットしたり手で編集したりしないでください。allowlist だけを変更した場合、イメージの再ビルドは不要です。イメージや Compose 設定を変更した場合は、利用するクライアントが提供する再ビルド手順を使ってください。Dev Containers CLI のオプションは `devcontainer up --help` で確認できます。
+
+Docker Desktop では、新しく追加するリポジトリごとに、コンテナを再作成する前に File Sharing の許可を追加してください。複数のリポジトリを含む広い親ディレクトリは共有しないでください。
+
+再接続後は、workspace のターミナルから設定した宛先が存在することを確認してください。CLI では例えば次のように確認できます。
+
+```sh
+devcontainer exec --workspace-folder . bash -lc \
+  'test -d /workspaces/<destination> && ls -ld /workspaces/<destination>'
+```
+
+allowlist から削除した宛先が残っていないことも確認してください。
 
 ### 3. クライアントを選ぶ
 

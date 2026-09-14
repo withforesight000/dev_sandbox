@@ -124,7 +124,7 @@ mounts rather than host parent-directory mounts.
 
 ### 2. Start the Dev Container
 
-Run from the repository root:
+Run from a host terminal at the repository root:
 
 ```sh
 bash .devcontainer/prepare-mounts
@@ -132,7 +132,45 @@ devcontainer up --workspace-folder .
 devcontainer exec --workspace-folder . bash
 ```
 
-The Dev Container client also invokes `prepare-mounts` through `initializeCommand`. The script atomically regenerates ignored local files under `.devcontainer/`; do not commit or hand-edit them. Add `--build` to rebuild after changing the image or Compose configuration.
+The Dev Container client also invokes `prepare-mounts` through `initializeCommand`.
+When you update `.devcontainer/allowlist.tsv` later, apply the change from a
+host terminal, not from a terminal attached to the Dev Container:
+
+```sh
+bash .devcontainer/prepare-mounts
+```
+
+If the command fails, fix the allowlist and run it again; do not reopen or
+recreate the container using the previous generated configuration. After it
+succeeds, recreate the container so additions and removals are reflected:
+
+- CLI: `devcontainer up --workspace-folder . --remove-existing-container`
+- VS Code: run `Dev Containers: Rebuild Container`
+- Zed: close the remote project, run the CLI command above from the host, then
+  reopen it with `Project: Open Remote`
+
+The `initializeCommand` hook also runs during startup, but it does not replace
+explicit container recreation when the mount policy changes. The script
+atomically regenerates ignored local files under `.devcontainer/`; do not commit
+or hand-edit them. An allowlist-only change does not require an image rebuild.
+For image or Compose changes, use the rebuild command supported by your client;
+the Dev Containers CLI version in use should be checked with
+`devcontainer up --help`.
+
+On Docker Desktop, grant File Sharing access to each newly added repository
+before recreating the container. Share the repository path itself, not a broad
+parent directory.
+
+After reconnecting, verify the configured destinations from the workspace
+terminal. With the CLI, for example:
+
+```sh
+devcontainer exec --workspace-folder . bash -lc \
+  'test -d /workspaces/<destination> && ls -ld /workspaces/<destination>'
+```
+
+Also confirm that destinations removed from the allowlist are no longer
+present.
 
 ### 3. Choose your client
 
