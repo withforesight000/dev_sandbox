@@ -67,6 +67,15 @@ Git リポジトリでないパス、入れ子になったパス、重複する�
 `dev:dev` 所有の一時的な `tmpfs` として用意されます。この仮想的な親ディレクトリ
 によって、ホスト側の親ディレクトリ全体が公開されることはありません。
 
+サービスが所有する固定マウントとも重ならない宛先を指定する必要があります。
+固定マウント自身、その配下、または固定マウントの親になる宛先は拒否されます。
+現在予約されている固定パスは、`/docker-socket`、`/tmp`、
+`/home/dev/.cache/mise`、`/home/dev/.local/share/mise`、
+`/home/dev/.local/share/docker`、`/home/dev/.codex`、`/home/dev/.claude`、
+`/run/ssh-agent` です。最後のパスは、任意の SSH agent 転送を無効にしている
+場合でも、後から中継を有効にできるため予約されます。`/workspaces` 配下の宛先は
+引き続き使用できます。予約されるのは `/workspaces` 自体だけです。
+
 Dev Containers クライアントを実行するホストには `python3` が必要です。
 allowlist の準備処理は Python の標準ライブラリだけを使い、サードパーティー
 パッケージを必要としません。

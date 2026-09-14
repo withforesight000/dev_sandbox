@@ -68,6 +68,16 @@ destinations under `/workspaces`, missing parent directories are provided as
 ephemeral `tmpfs` mounts owned by `dev:dev`. These synthetic parents do not
 expose a host parent directory.
 
+Destinations must also not overlap a service-owned fixed mount. A destination
+is invalid when it is the fixed path itself, a child of it, or a parent of it.
+The reserved fixed paths are `/docker-socket`, `/tmp`,
+`/home/dev/.cache/mise`, `/home/dev/.local/share/mise`,
+`/home/dev/.local/share/docker`, `/home/dev/.codex`, `/home/dev/.claude`, and
+`/run/ssh-agent`. The last path is reserved even when optional SSH agent
+forwarding is disabled, because the relay can be enabled on a later startup.
+Destinations under `/workspaces` remain valid; only `/workspaces` itself is
+reserved.
+
 The host running the Dev Containers client must provide `python3`. Allowlist
 preparation uses only Python's standard library and does not require
 third-party packages.

@@ -69,11 +69,18 @@ mount:
 
 The allowlist is checked before Compose starts. Missing paths, non-repository
 paths, nested paths, duplicate entries, duplicate or nested container
-destinations, malformed rows, and invalid destinations fail closed. Every
-additional repository must be a Git repository root, and every row must
-specify an absolute container destination. The current repository referenced by
+destinations, destinations that equal, contain, or are contained by a
+service-owned fixed mount, malformed rows, and invalid destinations fail
+closed. This fixed-mount check covers `/docker-socket`, `/tmp`,
+`/home/dev/.cache/mise`, `/home/dev/.local/share/mise`,
+`/home/dev/.local/share/docker`, `/home/dev/.codex`, `/home/dev/.claude`, and
+`/run/ssh-agent`. The validation completes before generated Compose output is
+written, so a collision cannot reach Compose startup. Every additional
+repository must be a Git repository root, and every row must specify an
+absolute container destination. The current repository referenced by
 `@workspace` is the deliberate exception to the additional-repository Git-root
-check.
+check; descendants of `/workspaces` remain valid because only that root is
+reserved.
 
 ## What this does not protect
 
