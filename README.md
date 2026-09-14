@@ -117,7 +117,10 @@ Use repository roots, not a broad parent directory. Host paths must exist, be ab
 @workspace-relative:../shared-lib	/workspaces/shared-lib
 ```
 
-The final path component is used as the repository alias. Avoid aliases that collide with the workspace or another entry.
+The configured container destination is the canonical repository path. No
+repository aliases or additional symlinks are generated; for nested paths under
+`/workspaces`, synthetic parent directories are temporary `dev:dev` `tmpfs`
+mounts rather than host parent-directory mounts.
 
 ### 2. Start the Dev Container
 

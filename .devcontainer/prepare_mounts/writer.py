@@ -8,38 +8,26 @@ from pathlib import Path
 
 
 class AtomicGeneratedFileWriter:
-    """Write generated files via temporary files and atomic replacement."""
+    """Write the generated Compose override atomically."""
 
     def write(
         self,
         override: Path,
-        aliases: Path,
         override_content: str,
-        aliases_content: str,
     ) -> None:
-        """Replace both generated files while cleaning up temporary files."""
+        """Replace the generated Compose override."""
 
-        temporary_paths: list[Path] = []
+        temporary_path: Path | None = None
         try:
-            temporary_override = self._write_temp_file(
+            temporary_path = self._write_temp_file(
                 override,
                 override_content,
                 prefix=".compose.allowlist.",
             )
-            temporary_paths.append(temporary_override)
-            temporary_aliases = self._write_temp_file(
-                aliases,
-                aliases_content,
-                prefix=".allowlist.",
-            )
-            temporary_paths.append(temporary_aliases)
-            os.chmod(temporary_aliases, 0o644)
-
-            os.replace(temporary_override, override)
-            os.replace(temporary_aliases, aliases)
-            temporary_paths.clear()
+            os.replace(temporary_path, override)
+            temporary_path = None
         finally:
-            for temporary_path in temporary_paths:
+            if temporary_path is not None:
                 try:
                     temporary_path.unlink()
                 except FileNotFoundError:

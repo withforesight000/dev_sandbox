@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import stat
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import TextIO
 
 from .errors import AllowlistError
@@ -174,15 +174,6 @@ class AllowlistValidator:
     ) -> None:
         """Reject duplicate and nested host or container mount paths."""
 
-        repository_target = PurePosixPath(str(repository.target))
-        if _paths_overlap(repository.workspace_alias_path, repository_target) and (
-            repository.workspace_alias_path != repository_target
-        ):
-            raise AllowlistError(
-                "workspace alias conflicts with its container mount path: "
-                f"{repository.workspace_alias_path}"
-            )
-
         for existing in existing_repositories:
             if existing.has_same_source_as(repository):
                 raise AllowlistError(f"duplicate repository path: {repository.source}")
@@ -207,38 +198,9 @@ class AllowlistValidator:
                     f"nested container mount paths are not allowed: {existing.target}"
                 )
 
-            if existing.workspace_alias == repository.workspace_alias:
-                raise AllowlistError(
-                    f"duplicate workspace alias: {repository.workspace_alias}"
-                )
-
-            if _paths_overlap(
-                repository.workspace_alias_path,
-                PurePosixPath(str(existing.target)),
-            ):
-                raise AllowlistError(
-                    "workspace alias conflicts with container mount path: "
-                    f"{repository.workspace_alias_path}"
-                )
-            if _paths_overlap(existing.workspace_alias_path, repository_target):
-                raise AllowlistError(
-                    "workspace alias conflicts with container mount path: "
-                    f"{existing.workspace_alias_path}"
-                )
-
     @staticmethod
     def _is_unix_socket(path: Path) -> bool:
         try:
             return stat.S_ISSOCK(path.stat().st_mode)
         except OSError:
             return False
-
-
-def _paths_overlap(candidate: PurePosixPath, existing: PurePosixPath) -> bool:
-    """Return whether two paths are equal or one is nested under the other."""
-
-    return (
-        candidate == existing
-        or candidate in existing.parents
-        or existing in candidate.parents
-    )

@@ -33,14 +33,12 @@ class ResolverDetector(Protocol):
 
 
 class GeneratedFileWriter(Protocol):
-    """Write the generated Compose and alias files."""
+    """Write the generated Compose override."""
 
     def write(
         self,
         override: Path,
-        aliases: Path,
         override_content: str,
-        aliases_content: str,
     ) -> None:
-        """Write both generated files atomically."""
+        """Write the generated Compose override atomically."""
         ...

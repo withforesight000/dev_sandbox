@@ -117,7 +117,10 @@ Docker Sandboxes は、サンドボックスごとの microVM を主な信頼境
 @workspace-relative:../shared-lib	/workspaces/shared-lib
 ```
 
-パスの最後の要素がリポジトリの alias として使われます。workspace や他のエントリと衝突する alias は避けてください。
+設定したコンテナ側の宛先が、リポジトリの canonical なパスになります。リポジトリの
+alias や追加のシンボリックリンクは生成されません。`/workspaces` 配下のネストした
+パスでは、親ディレクトリはホスト側の親全体ではなく、`dev:dev` 所有の一時的な
+`tmpfs` として用意されます。
 
 ### 2. Dev Container を起動する
 

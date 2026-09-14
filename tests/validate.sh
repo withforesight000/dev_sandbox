@@ -37,7 +37,8 @@ for file in \
   .devcontainer/allowlist.tsv \
   README.md \
   LICENSE \
-  tests/test_prepare_mounts.py; do
+  tests/test_prepare_mounts.py \
+  tests/render_safe_fixture.py; do
   assert_file "$file"
 done
 
@@ -146,37 +147,40 @@ if command -v rg >/dev/null 2>&1; then
   fi
 fi
 
-bash .devcontainer/prepare-mounts
-if env -u SSH_AUTH_SOCK bash .devcontainer/prepare-mounts && \
-  rg -q '^  ssh-agent:' .devcontainer/compose.allowlist.local.yml; then
+validation_fixture_dir=$(mktemp -d /tmp/devcontainer-validation.XXXXXX)
+trap 'rm -rf -- "$validation_fixture_dir"' EXIT
+safe_override="$validation_fixture_dir/compose.safe.yml"
+safe_ssh_override="$validation_fixture_dir/compose.safe-ssh.yml"
+
+# Never invoke the production prepare-mounts command here. It reads the user's
+# allowlist and can place resolved host paths or SSH socket paths in output.
+python3 tests/render_safe_fixture.py \
+  "$safe_override" "$validation_fixture_dir"
+python3 tests/render_safe_fixture.py \
+  "$safe_ssh_override" "$validation_fixture_dir" --ssh-agent
+
+if rg -q '^  ssh-agent:' "$safe_override"; then
   echo 'the SSH relay must be opt-in' >&2
   exit 1
 fi
 if awk '/^  workspace:/{inside=1; next} inside && /^  [A-Za-z0-9_-]+:/{exit} inside' \
-  .devcontainer/compose.allowlist.local.yml | \
-  rg -q '/run/host-ssh-agent.sock'; then
+  "$safe_ssh_override" | rg -q '/run/host-ssh-agent.sock'; then
   echo 'the host SSH agent must not be mounted directly into the workspace' >&2
   exit 1
 fi
-if [[ -n "${SSH_AUTH_SOCK:-}" && -S "$SSH_AUTH_SOCK" ]]; then
-  bash .devcontainer/prepare-mounts
-fi
-if [[ -n "${SSH_AUTH_SOCK:-}" && -S "$SSH_AUTH_SOCK" ]]; then
-  ssh_agent_source=$(realpath -- "$SSH_AUTH_SOCK")
-  rg -q "source: '$ssh_agent_source'" .devcontainer/compose.allowlist.local.yml
-  rg -q 'target: /run/host-ssh-agent.sock' .devcontainer/compose.allowlist.local.yml
-  rg -q 'SSH_AUTH_SOCK: /run/ssh-agent/agent.sock' .devcontainer/compose.allowlist.local.yml
-fi
 if awk '/^  docker:/{inside=1; next} inside && /^  [A-Za-z0-9_-]+:/{exit} inside' \
-  .devcontainer/compose.allowlist.local.yml | \
-  rg -q '/run/host-ssh-agent.sock'; then
+  "$safe_ssh_override" | rg -q '/run/host-ssh-agent.sock'; then
   echo 'the host SSH agent must not be mounted into the Docker daemon container' >&2
   exit 1
 fi
 if command -v docker >/dev/null 2>&1; then
   docker compose \
     -f .devcontainer/compose.yml \
-    -f .devcontainer/compose.allowlist.local.yml \
+    -f "$safe_override" \
+    config --quiet
+  docker compose \
+    -f .devcontainer/compose.yml \
+    -f "$safe_ssh_override" \
     config --quiet
 fi
 

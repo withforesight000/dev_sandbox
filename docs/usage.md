@@ -58,21 +58,19 @@ under predictable paths inside the Dev Container:
 /Volumes/team/shared-lib<TAB>/workspaces/shared-lib
 ```
 
-In the `workspace` service, the final component of the mount path is used as a
-navigation alias under `/workspaces`. If the configured mount path is already
-`/workspaces/<name>`, the mounted directory itself is used without creating an
-additional symlink. The `docker` service uses the configured mount destination
-itself and does not create these aliases. Aliases must not collide with the
-workspace or another entry.
+The configured mount destination is the canonical repository path in both
+services; no navigation aliases or additional symlinks are created. For nested
+destinations under `/workspaces`, missing parent directories are provided as
+ephemeral `tmpfs` mounts owned by `dev:dev`. These synthetic parents do not
+expose a host parent directory.
 
 The host running the Dev Containers client must provide `python3`. Allowlist
 preparation uses only Python's standard library and does not require
 third-party packages.
 
 Reopen or rebuild the Dev Container after changing the allowlist. The startup
-script regenerates `.devcontainer/compose.allowlist.local.yml` and
-`.devcontainer/allowlist.local.tsv`; both files are ignored and must not be
-committed or hand-edited.
+script regenerates `.devcontainer/compose.allowlist.local.yml`; this file is
+ignored and must not be committed or hand-edited.
 
 ## Runtime versions
 

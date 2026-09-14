@@ -58,20 +58,19 @@ Git リポジトリでないパス、入れ子になったパス、重複する�
 /Volumes/team/shared-lib<TAB>/workspaces/shared-lib
 ```
 
-`workspace` サービスでは、マウント先の最後の要素が `/workspaces` 配下の移動用
-alias として使われます。マウント先がすでに `/workspaces/<name>` であれば、追加
-のシンボリックリンクを作らず、マウントされたディレクトリ自身が使われます。
-`docker` サービスでは alias は作られず、allowlist に設定したマウント先そのもの
-を使います。alias は workspace や他のエントリと衝突しないようにしてください。
+設定したマウント先が、`workspace` と `docker` の両サービスにおける canonical な
+リポジトリパスになります。移動用 alias や追加のシンボリックリンクは作成しません。
+`/workspaces` 配下にネストした宛先を指定した場合、不足する親ディレクトリは
+`dev:dev` 所有の一時的な `tmpfs` として用意されます。この仮想的な親ディレクトリ
+によって、ホスト側の親ディレクトリ全体が公開されることはありません。
 
 Dev Containers クライアントを実行するホストには `python3` が必要です。
 allowlist の準備処理は Python の標準ライブラリだけを使い、サードパーティー
 パッケージを必要としません。
 
 allowlist を変更したら、Dev Container を再開または再ビルドしてください。
-起動スクリプトは `.devcontainer/compose.allowlist.local.yml` と
-`.devcontainer/allowlist.local.tsv` を再生成します。これらは Git の対象外で、
-コミットしたり手で編集したりしないでください。
+起動スクリプトは `.devcontainer/compose.allowlist.local.yml` を再生成します。
+これは Git の対象外で、コミットしたり手で編集したりしないでください。
 
 ## 実行時のバージョン
 

@@ -26,10 +26,16 @@ class ContainerMountPath:
         return cls(value)
 
     @property
-    def basename(self) -> str:
-        """Return the final path component used for the workspace alias."""
+    def workspace_parent_paths(self) -> tuple[PurePosixPath, ...]:
+        """Return workspace ancestors from outermost to innermost."""
 
-        return PurePosixPath(self.value).name
+        workspace_root = PurePosixPath("/workspaces")
+        current = PurePosixPath(self.value).parent
+        ancestors: list[PurePosixPath] = []
+        while current != workspace_root and workspace_root in current.parents:
+            ancestors.append(current)
+            current = current.parent
+        return tuple(reversed(ancestors))
 
     def is_nested_under(self, other: ContainerMountPath) -> bool:
         """Return whether this mount path is nested under another path."""
@@ -51,7 +57,7 @@ class ContainerMountPath:
             raise AllowlistError("container mount path must not be the filesystem root")
         if value == "/workspaces":
             raise AllowlistError(
-                "container mount path is reserved for workspace aliases: /workspaces"
+                "container mount path is reserved for the workspace root: /workspaces"
             )
         if value.endswith("/"):
             raise AllowlistError("container mount path must not have a trailing slash")

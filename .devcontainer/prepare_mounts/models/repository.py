@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 from .mount import ContainerMountPath
 
@@ -14,18 +14,6 @@ class AllowlistedRepository:
 
     source: Path
     target: ContainerMountPath
-
-    @property
-    def workspace_alias(self) -> str:
-        """Return the navigation alias derived from the mount destination."""
-
-        return self.target.basename
-
-    @property
-    def workspace_alias_path(self) -> PurePosixPath:
-        """Return the absolute container path used for the navigation alias."""
-
-        return PurePosixPath("/workspaces") / self.workspace_alias
 
     def __post_init__(self) -> None:
         if not isinstance(self.target, ContainerMountPath):

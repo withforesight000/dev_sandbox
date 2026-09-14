@@ -13,7 +13,6 @@ class PreparationPaths:
     repo_root: Path
     allowlist: Path
     override: Path
-    aliases: Path
 
     @classmethod
     def from_script(cls, script_path: Path) -> PreparationPaths:
@@ -24,5 +23,4 @@ class PreparationPaths:
             repo_root=script_dir.parent,
             allowlist=script_dir / "allowlist.tsv",
             override=script_dir / "compose.allowlist.local.yml",
-            aliases=script_dir / "allowlist.local.tsv",
         )

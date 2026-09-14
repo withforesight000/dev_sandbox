@@ -68,13 +68,8 @@ class PrepareMounts:
             dns_servers = self._resolver_detector.detect(
                 self._environment.get("ROOTLESS_DOCKER_DNS")
             )
-        aliases_content = "".join(
-            f"{repository.workspace_alias}\t{repository.target}\n"
-            for repository in repositories
-        )
         override_content = self._renderer.render(
             repositories,
-            paths.aliases,
             paths.repo_root,
             ssh_agent_socket,
             dns_servers,
@@ -82,9 +77,7 @@ class PrepareMounts:
         try:
             self._writer.write(
                 paths.override,
-                paths.aliases,
                 override_content,
-                aliases_content,
             )
         except OSError as error:
             raise AllowlistError(

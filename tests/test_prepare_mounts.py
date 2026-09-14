@@ -94,17 +94,13 @@ class MemoryFileWriter:
 
     def __init__(self) -> None:
         self.override_content = ""
-        self.aliases_content = ""
 
     def write(
         self,
         override: Path,
-        aliases: Path,
         override_content: str,
-        aliases_content: str,
     ) -> None:
         self.override_content = override_content
-        self.aliases_content = aliases_content
 
 
 class PrepareMountsTests(unittest.TestCase):
@@ -138,7 +134,7 @@ class PrepareMountsTests(unittest.TestCase):
             root = root.resolve()
             allowlist = root / "allowlist.tsv"
             allowlist.write_text(
-                "@workspace\t\t\t/workspaces/dev-sandbox\n",
+                "@workspace\t\t\t/workspaces/repo-alpha\n",
                 encoding="utf-8",
             )
 
@@ -148,8 +144,7 @@ class PrepareMountsTests(unittest.TestCase):
 
             self.assertEqual(len(repositories), 1)
             self.assertEqual(repositories[0].source, root.resolve())
-            self.assertEqual(str(repositories[0].target), "/workspaces/dev-sandbox")
-            self.assertEqual(repositories[0].workspace_alias, "dev-sandbox")
+            self.assertEqual(str(repositories[0].target), "/workspaces/repo-alpha")
 
     def test_allowlist_does_not_require_the_sandbox_repository(self) -> None:
         """Allow mounting only explicitly selected repositories."""
@@ -175,8 +170,8 @@ class PrepareMountsTests(unittest.TestCase):
             self.assertEqual(repositories[0].source, external)
             self.assertEqual(str(repositories[0].target), "/workspaces/external")
 
-    def test_duplicate_workspace_aliases_are_rejected(self) -> None:
-        """Mount destinations with the same basename cannot share an alias."""
+    def test_same_basename_targets_are_allowed(self) -> None:
+        """Mount destinations with the same basename do not need aliases."""
 
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory) / "sandbox"
@@ -197,13 +192,11 @@ class PrepareMountsTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            with self.assertRaisesRegex(
-                prepare_mounts.AllowlistError,
-                "duplicate workspace alias: project",
-            ):
-                prepare_mounts.AllowlistValidator(
-                    FakeCommandRunner(f"{external}\n")
-                ).parse(allowlist, root)
+            repositories = prepare_mounts.AllowlistValidator(
+                FakeCommandRunner(f"{external}\n")
+            ).parse(allowlist, root)
+
+            self.assertEqual(len(repositories), 2)
 
     def test_workspace_absolute_source_spec_is_accepted(self) -> None:
         """Resolve an explicit absolute path introduced by the workspace prefix."""
@@ -219,7 +212,7 @@ class PrepareMountsTests(unittest.TestCase):
             allowlist.write_text(
                 "\n".join(
                     [
-                        "@workspace\t/workspaces/dev-sandbox",
+                        "@workspace\t/workspaces/repo-alpha",
                         f"@workspace:{external}\t/workspaces/external",
                     ]
                 )
@@ -245,7 +238,7 @@ class PrepareMountsTests(unittest.TestCase):
             for source_spec in ("@workspace:", "@workspace:relative"):
                 allowlist = root / "allowlist.tsv"
                 allowlist.write_text(
-                    f"{source_spec}\t/workspaces/dev-sandbox\n",
+                    f"{source_spec}\t/workspaces/repo-alpha\n",
                     encoding="utf-8",
                 )
 
@@ -269,7 +262,7 @@ class PrepareMountsTests(unittest.TestCase):
             allowlist.write_text(
                 "\n".join(
                     [
-                        f"{root}\t/workspaces/dev-sandbox",
+                        f"{root}\t/workspaces/repo-alpha",
                         f"{external}\t/workspaces/external",
                     ]
                 )
@@ -285,7 +278,7 @@ class PrepareMountsTests(unittest.TestCase):
 
             self.assertEqual(
                 [str(repository.target) for repository in repositories],
-                ["/workspaces/dev-sandbox", "/workspaces/external"],
+                ["/workspaces/repo-alpha", "/workspaces/external"],
             )
             self.assertEqual(
                 runner.commands,
@@ -302,13 +295,49 @@ class PrepareMountsTests(unittest.TestCase):
 
         rendered = prepare_mounts.ComposeOverrideRenderer().render(
             [repository],
-            Path("/host/allowlist.local.tsv"),
             Path("/host/sandbox"),
             None,
         )
 
         self.assertEqual(rendered.count("target: '/workspaces/example'"), 2)
+        self.assertNotIn("tmpfs:", rendered)
         self.assertNotIn("ROOTLESS_DOCKER_DNS", rendered)
+
+    def test_renderer_adds_deduplicated_workspace_parent_tmpfs_mounts(self) -> None:
+        repositories = [
+            prepare_mounts.AllowlistedRepository(
+                source=Path("/host/repo-alpha"),
+                target="/workspaces/group-alpha/repo-alpha",
+            ),
+            prepare_mounts.AllowlistedRepository(
+                source=Path("/host/repo-beta"),
+                target="/workspaces/group-alpha/repo-beta",
+            ),
+            prepare_mounts.AllowlistedRepository(
+                source=Path("/host/deep"),
+                target="/workspaces/group-beta/service/repo-gamma",
+            ),
+        ]
+
+        rendered = prepare_mounts.ComposeOverrideRenderer().render(
+            repositories,
+            Path("/host/sandbox"),
+            None,
+        )
+
+        for parent in (
+            "/workspaces/group-alpha",
+            "/workspaces/group-beta",
+            "/workspaces/group-beta/service",
+        ):
+            mount = f"'{parent}:uid=1000,gid=1000,mode=0755'"
+            self.assertEqual(rendered.count(mount), 2)
+        self.assertEqual(
+            rendered.count("target: '/workspaces/group-alpha/repo-alpha'"),
+            2,
+        )
+        self.assertNotIn("allowlist.local.tsv", rendered)
+        self.assertNotIn("/run/devcontainer/allowlist.tsv", rendered)
 
     def test_renderer_removes_stale_ssh_relay_socket(self) -> None:
         """The relay must recover when its named volume contains an old socket."""
@@ -320,7 +349,6 @@ class PrepareMountsTests(unittest.TestCase):
 
         rendered = prepare_mounts.ComposeOverrideRenderer().render(
             [repository],
-            Path("/host/allowlist.local.tsv"),
             Path("/host/sandbox"),
             Path("/host/ssh-agent.sock"),
         )
@@ -351,6 +379,13 @@ class PrepareMountsTests(unittest.TestCase):
         self.assertTrue(nested.is_target_nested_under(outer))
         self.assertFalse(outer.is_source_nested_under(nested))
         self.assertFalse(outer.is_target_nested_under(nested))
+        self.assertEqual(tuple(map(str, outer.target.workspace_parent_paths)), ())
+        self.assertEqual(
+            tuple(map(str, nested.target.workspace_parent_paths)),
+            ("/workspaces/repository",),
+        )
+        outside = prepare_mounts.ContainerMountPath.parse("/other/workspaces/repository")
+        self.assertEqual(tuple(map(str, outside.workspace_parent_paths)), ())
 
     def test_container_mount_path_validates_and_compares_paths(self) -> None:
         outer = prepare_mounts.ContainerMountPath.parse(
@@ -365,7 +400,7 @@ class PrepareMountsTests(unittest.TestCase):
         self.assertFalse(outer.is_nested_under(nested))
         with self.assertRaisesRegex(
             prepare_mounts.AllowlistError,
-            "reserved for workspace aliases",
+            "reserved for the workspace root",
         ):
             prepare_mounts.ContainerMountPath.parse("/workspaces")
 
@@ -564,7 +599,6 @@ class PrepareMountsTests(unittest.TestCase):
 
         rendered = prepare_mounts.ComposeOverrideRenderer().render(
             [repository],
-            Path("/host/allowlist.local.tsv"),
             Path("/host/sandbox"),
             None,
             prepare_mounts.DnsServers.from_detected(["192.0.2.53", "2001:db8::53"]),
@@ -587,10 +621,9 @@ class PrepareMountsTests(unittest.TestCase):
                 repo_root=root,
                 allowlist=root / "allowlist.tsv",
                 override=root / "compose.allowlist.local.yml",
-                aliases=root / "allowlist.local.tsv",
             )
             paths.allowlist.write_text(
-                "@workspace\t/dev-sandbox\n",
+                "@workspace\t/workspaces/repo-alpha\n",
                 encoding="utf-8",
             )
             writer = MemoryFileWriter()
@@ -606,10 +639,6 @@ class PrepareMountsTests(unittest.TestCase):
 
             application.run(paths)
 
-            self.assertEqual(
-                writer.aliases_content,
-                "dev-sandbox\t/dev-sandbox\n",
-            )
             self.assertIn(
                 "ROOTLESS_DOCKER_DNS: '192.0.2.53'",
                 writer.override_content,
@@ -625,10 +654,9 @@ class PrepareMountsTests(unittest.TestCase):
                 repo_root=root,
                 allowlist=root / "allowlist.tsv",
                 override=root / "compose.allowlist.local.yml",
-                aliases=root / "allowlist.local.tsv",
             )
             paths.allowlist.write_text(
-                "@workspace\t/dev-sandbox\n",
+                "@workspace\t/workspaces/repo-alpha\n",
                 encoding="utf-8",
             )
             writer = MemoryFileWriter()

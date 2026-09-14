@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from .models import AllowlistedRepository, DnsServers
 
@@ -19,15 +19,20 @@ class ComposeOverrideRenderer:
     def render(
         self,
         repositories: list[AllowlistedRepository],
-        aliases: Path,
         repo_root: Path,
         ssh_agent_socket: Path | None,
         dns_servers: DnsServers | None = None,
     ) -> str:
         """Render workspace, Docker daemon, and optional SSH relay services."""
 
+        workspace_parents = self._workspace_parent_paths(repositories)
         lines = ["services:", "  workspace:"]
-        self._append_workspace_service(lines, repositories, aliases, ssh_agent_socket)
+        self._append_workspace_service(
+            lines,
+            repositories,
+            workspace_parents,
+            ssh_agent_socket,
+        )
         lines.append("  docker:")
         if dns_servers:
             lines.extend(
@@ -36,6 +41,7 @@ class ComposeOverrideRenderer:
                     f"      ROOTLESS_DOCKER_DNS: {yaml_quote(dns_servers.as_environment_value())}",
                 ]
             )
+        ComposeOverrideRenderer._append_tmpfs_mounts(lines, workspace_parents)
         lines.append("    volumes:")
         self._append_repository_mounts(lines, repositories)
         if ssh_agent_socket is not None:
@@ -46,7 +52,7 @@ class ComposeOverrideRenderer:
     def _append_workspace_service(
         lines: list[str],
         repositories: list[AllowlistedRepository],
-        aliases: Path,
+        workspace_parents: tuple[PurePosixPath, ...],
         ssh_agent_socket: Path | None,
     ) -> None:
         if ssh_agent_socket is not None:
@@ -61,6 +67,7 @@ class ComposeOverrideRenderer:
                     "        condition: service_healthy",
                 ]
             )
+        ComposeOverrideRenderer._append_tmpfs_mounts(lines, workspace_parents)
         lines.append("    volumes:")
         if ssh_agent_socket is not None:
             lines.extend(
@@ -71,14 +78,31 @@ class ComposeOverrideRenderer:
                 ]
             )
         ComposeOverrideRenderer._append_repository_mounts(lines, repositories)
-        lines.extend(
-            [
-                "      - type: bind",
-                f"        source: {yaml_quote(str(aliases))}",
-                "        target: /run/devcontainer/allowlist.tsv",
-                "        read_only: true",
-            ]
-        )
+
+    @staticmethod
+    def _workspace_parent_paths(
+        repositories: list[AllowlistedRepository],
+    ) -> tuple[PurePosixPath, ...]:
+        """Return unique synthetic parent paths in mount order."""
+
+        paths = {
+            parent
+            for repository in repositories
+            for parent in repository.target.workspace_parent_paths
+        }
+        return tuple(sorted(paths, key=lambda path: (len(path.parts), str(path))))
+
+    @staticmethod
+    def _append_tmpfs_mounts(
+        lines: list[str],
+        workspace_parents: tuple[PurePosixPath, ...],
+    ) -> None:
+        if not workspace_parents:
+            return
+        lines.append("    tmpfs:")
+        for parent in workspace_parents:
+            options = f"{parent}:uid=1000,gid=1000,mode=0755"
+            lines.append(f"      - {yaml_quote(options)}")
 
     @staticmethod
     def _append_repository_mounts(
