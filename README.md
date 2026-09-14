@@ -8,6 +8,63 @@
 
 The sandbox workspace is available to the agent. Additional repositories become available only when you explicitly add them to a fail-closed allowlist. In the normal setup, the host home directory, SSH keys, cloud credentials, Docker configuration, and host Docker socket are not mounted into the container.
 
+## Table of contents
+
+- [Prerequisites](#prerequisites)
+- [Quick start](#quick-start)
+  - [Configure the repository allowlist](#1-configure-the-repository-allowlist)
+  - [Start the Dev Container](#2-start-the-dev-container)
+  - [Choose your client](#3-choose-your-client)
+- [Why this exists](#why-this-exists)
+- [Key benefits](#key-benefits)
+- [Cross-repository investigation](#cross-repository-investigation)
+- [Security boundary](#security-boundary)
+- [How it compares with Docker Sandboxes](#how-it-compares-with-docker-sandboxes)
+- [Daily use](#daily-use)
+- [Validation](#validation)
+- [Documentation](#documentation)
+- [License](#license)
+
+## Prerequisites
+
+- Docker Desktop on macOS, or Docker Engine on Linux.
+- `python3` on the host for allowlist preparation.
+- A Dev Containers-compatible client such as the Dev Containers CLI, VS Code, or Zed.
+- File-sharing permission for only the allowlisted host paths when using Docker Desktop.
+
+## Quick start
+
+### 1. Configure the repository allowlist
+
+Edit `.devcontainer/allowlist.tsv`. Each row contains a host repository path, a tab, and its absolute path inside the containers:
+
+```text
+/Users/you/src/api	/workspaces/api
+/Users/you/src/shared-lib	/workspaces/shared-lib
+```
+
+Use repository roots, not a broad parent directory. The host paths must exist, and both host paths and container destinations must be unique and non-nested. The main workspace does not need an allowlist row.
+
+### 2. Start the Dev Container
+
+Run these commands from a host terminal at the repository root:
+
+```sh
+bash .devcontainer/prepare-mounts
+devcontainer up --workspace-folder .
+devcontainer exec --workspace-folder . bash
+```
+
+The Dev Container client also invokes `prepare-mounts` through `initializeCommand`. When you update the allowlist later, follow the [update procedure](docs/usage.md#applying-allowlist-changes): validate it on the host, recreate the container, and then reconnect.
+
+### 3. Choose your client
+
+- CLI: use the commands above.
+- VS Code: run `Dev Containers: Reopen in Container` for the first connection.
+- Zed: use `Project: Open Remote` with this repository's Dev Container configuration.
+
+For special `@workspace` entries, nested destinations, client-specific recreation steps, and security details, continue with the [Usage guide](docs/usage.md).
+
 ## Why this exists
 
 An AI agent is most useful when it can inspect the code, tools, and related repositories needed for a task. Giving it a broad host directory, however, makes the trust boundary difficult to see and audit. A typo in a mount path can expose much more than intended, and a repository often contains hidden files, build scripts, hooks, or local credentials that deserve the same care as source code.
@@ -91,92 +148,6 @@ This lets an agent move between selected repositories such as `/workspaces/api` 
 Docker Sandboxes use a per-sandbox microVM as the primary trust boundary, provide a private Docker Engine and filesystem, proxy outbound TCP traffic with a deny-by-default policy, and can provide credentials through a host-side proxy rather than placing raw values in the VM. Those properties are a better fit when the strongest isolation for an autonomous or untrusted agent is the priority.
 
 Choose this project when selective repository exposure and a familiar Dev Container / Compose workflow are the priority. Choose Docker Sandboxes when stronger VM-, network-, and credential-isolation defaults for an autonomous or untrusted agent are the priority.
-
-## Prerequisites
-
-- Docker Desktop on macOS, or Docker Engine on Linux.
-- `python3` on the host for allowlist preparation.
-- A Dev Containers-compatible client such as the Dev Containers CLI, VS Code, or Zed.
-- File-sharing permission for only the allowlisted host paths when using Docker Desktop.
-
-## Getting started
-
-### 1. Configure the repository allowlist
-
-Edit `.devcontainer/allowlist.tsv`. Each row contains a host repository path, a tab, and its absolute path inside the containers:
-
-```text
-/Users/you/src/api	/workspaces/api
-/Users/you/src/shared-lib	/workspaces/shared-lib
-```
-
-Use repository roots, not a broad parent directory. Host paths must exist, be absolute, and be unique and non-nested. Container destinations must also be absolute, unique, and non-nested. The main workspace does not need an allowlist row. Use `@workspace` or `@workspace-relative` when a path should follow the current workspace:
-
-```text
-@workspace	/workspaces/current
-@workspace-relative:../shared-lib	/workspaces/shared-lib
-```
-
-The configured container destination is the canonical repository path. No
-repository aliases or additional symlinks are generated; for nested paths under
-`/workspaces`, synthetic parent directories are temporary `dev:dev` `tmpfs`
-mounts rather than host parent-directory mounts.
-
-### 2. Start the Dev Container
-
-Run from a host terminal at the repository root:
-
-```sh
-bash .devcontainer/prepare-mounts
-devcontainer up --workspace-folder .
-devcontainer exec --workspace-folder . bash
-```
-
-The Dev Container client also invokes `prepare-mounts` through `initializeCommand`.
-When you update `.devcontainer/allowlist.tsv` later, apply the change from a
-host terminal, not from a terminal attached to the Dev Container:
-
-```sh
-bash .devcontainer/prepare-mounts
-```
-
-If the command fails, fix the allowlist and run it again; do not reopen or
-recreate the container using the previous generated configuration. After it
-succeeds, recreate the container so additions and removals are reflected:
-
-- CLI: `devcontainer up --workspace-folder . --remove-existing-container`
-- VS Code: run `Dev Containers: Rebuild Container`
-- Zed: close the remote project, run the CLI command above from the host, then
-  reopen it with `Project: Open Remote`
-
-The `initializeCommand` hook also runs during startup, but it does not replace
-explicit container recreation when the mount policy changes. The script
-atomically regenerates ignored local files under `.devcontainer/`; do not commit
-or hand-edit them. An allowlist-only change does not require an image rebuild.
-For image or Compose changes, use the rebuild command supported by your client;
-the Dev Containers CLI version in use should be checked with
-`devcontainer up --help`.
-
-On Docker Desktop, grant File Sharing access to each newly added repository
-before recreating the container. Share the repository path itself, not a broad
-parent directory.
-
-After reconnecting, verify the configured destinations from the workspace
-terminal. With the CLI, for example:
-
-```sh
-devcontainer exec --workspace-folder . bash -lc \
-  'test -d /workspaces/<destination> && ls -ld /workspaces/<destination>'
-```
-
-Also confirm that destinations removed from the allowlist are no longer
-present.
-
-### 3. Choose your client
-
-- CLI: install the [Dev Containers CLI](https://github.com/devcontainers/cli) and use the commands above.
-- VS Code: install the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) and run `Dev Containers: Reopen in Container`.
-- Zed: use `Project: Open Remote` with this repository's Dev Container configuration.
 
 ## Daily use
 

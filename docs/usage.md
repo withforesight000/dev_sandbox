@@ -68,6 +68,8 @@ The host running the Dev Containers client must provide `python3`. Allowlist
 preparation uses only Python's standard library and does not require
 third-party packages.
 
+## Applying allowlist changes
+
 After changing `.devcontainer/allowlist.tsv`, apply the change from a host
 terminal at the repository root, not from a terminal attached to the Dev
 Container:

@@ -8,6 +8,63 @@
 
 現在の workspace はエージェントから利用できます。追加のリポジトリは allowlist に明示的に登録した場合だけ利用できます。allowlist の検証に失敗した場合は、安全側に倒して起動を拒否します。通常の構成では、ホストのホームディレクトリ、SSH 鍵、クラウド認証情報、Docker 設定、ホストの Docker socket はコンテナにマウントされません。
 
+## 目次
+
+- [前提条件](#前提条件)
+- [クイックスタート](#クイックスタート)
+  - [1. リポジトリの allowlist を設定する](#1-リポジトリの-allowlist-を設定する)
+  - [2. Dev Container を起動する](#2-dev-container-を起動する)
+  - [3. クライアントを選ぶ](#3-クライアントを選ぶ)
+- [このリポジトリの目的](#このリポジトリの目的)
+- [主な利点](#主な利点)
+- [複数リポジトリの横断調査](#複数リポジトリの横断調査)
+- [セキュリティ境界](#セキュリティ境界)
+- [Docker Sandboxes との比較](#docker-sandboxes-との比較)
+- [日常の使い方](#日常の使い方)
+- [検証](#検証)
+- [ドキュメント](#ドキュメント)
+- [ライセンス](#ライセンス)
+
+## 前提条件
+
+- macOS では Docker Desktop、Linux では Docker Engine
+- allowlist の生成・検証に使うホスト上の `python3`
+- Dev Containers CLI、VS Code、Zed など Dev Container に対応したクライアント
+- Docker Desktop を使う場合は、allowlist に登録したホストパスだけを対象にしたファイル共有設定
+
+## クイックスタート
+
+### 1. リポジトリの allowlist を設定する
+
+`.devcontainer/allowlist.tsv` を編集します。各行には、ホスト上のリポジトリパスとコンテナ内の絶対パスを、タブ文字で区切って記述します。
+
+```text
+/Users/you/src/api	/workspaces/api
+/Users/you/src/shared-lib	/workspaces/shared-lib
+```
+
+広い親ディレクトリではなく、リポジトリのルートを指定してください。ホストパスは存在し、ホスト側パスとコンテナ側の宛先の両方に重複や入れ子がない必要があります。メインの workspace は allowlist に登録する必要がありません。
+
+### 2. Dev Container を起動する
+
+ホスト側のターミナルを使い、リポジトリのルートから次のコマンドを実行します。
+
+```sh
+bash .devcontainer/prepare-mounts
+devcontainer up --workspace-folder .
+devcontainer exec --workspace-folder . bash
+```
+
+Dev Container クライアントは `initializeCommand` からも `prepare-mounts` を実行します。後から allowlist を更新する場合は、ホスト上で検証し、コンテナを再作成してから再接続します。詳しくは [allowlist の変更を反映する手順](docs/usage.ja.md#allowlist-の変更を反映する) を参照してください。
+
+### 3. クライアントを選ぶ
+
+- CLI: 上記のコマンドを使います。
+- VS Code: 初回接続では `Dev Containers: Reopen in Container` を実行します。
+- Zed: このリポジトリの Dev Container 設定を `Project: Open Remote` で開きます。
+
+`@workspace` の特殊な形式、ネストした宛先、クライアントごとの再作成手順、セキュリティ上の注意は、[利用ガイド](docs/usage.ja.md)を参照してください。
+
 ## このリポジトリの目的
 
 AI エージェントは、タスクに必要なコードを調査し、ツールを使い、関連リポジトリを参照できるときに最も役立ちます。しかし、ホスト上の広いディレクトリを渡すと、信頼境界が分かりにくく、監査もしづらくなります。マウントパスを誤ると意図以上の範囲を公開するおそれがあり、リポジトリにはソースコードだけでなく、隠しファイル、ビルドスクリプト、フック、ローカルの認証情報が含まれていることもあります。
@@ -91,77 +148,6 @@ Docker 公式ドキュメントの [Sandboxes 概要](https://docs.docker.com/ai
 Docker Sandboxes は、サンドボックスごとの microVM を主な信頼境界とし、専用の Docker Engine とファイルシステムを提供します。また、外部への TCP 通信を deny-by-default ポリシーでプロキシし、認証情報そのものを VM 内に渡さず、ホスト側のプロキシ経由で提供できます。自律的に動作するエージェントや信頼できないエージェントに対して、強い隔離を優先する場合には、これらの性質が適しています。
 
 選択的なリポジトリ公開と、使い慣れた Dev Container / Compose ワークフローを優先するなら本プロジェクトが適しています。自律的に動作するエージェントや信頼できないエージェントに対して、VM・ネットワーク・認証情報をより強く隔離するデフォルト設定を優先するなら Docker Sandboxes が適しています。
-
-## 前提条件
-
-- macOS では Docker Desktop、Linux では Docker Engine
-- allowlist の生成・検証に使うホスト上の `python3`
-- Dev Containers CLI、VS Code、Zed など Dev Container に対応したクライアント
-- Docker Desktop を使う場合は、allowlist に登録したホストパスだけを対象にしたファイル共有設定
-
-## 始め方
-
-### 1. リポジトリの allowlist を設定する
-
-`.devcontainer/allowlist.tsv` を編集します。各行には、ホスト上のリポジトリパスとコンテナ内の絶対パスを、タブ文字で区切って記述します。
-
-```text
-/Users/you/src/api	/workspaces/api
-/Users/you/src/shared-lib	/workspaces/shared-lib
-```
-
-広い親ディレクトリではなく、リポジトリのルートを指定してください。ホストパスは存在する絶対パスで、重複や入れ子がない必要があります。コンテナ側の宛先も絶対パスで、重複や入れ子がない必要があります。メインの workspace は allowlist に登録する必要がありません。現在の workspace に追従させるパスには `@workspace` または `@workspace-relative` を使えます。
-
-```text
-@workspace	/workspaces/current
-@workspace-relative:../shared-lib	/workspaces/shared-lib
-```
-
-設定したコンテナ側の宛先が、リポジトリの canonical なパスになります。リポジトリの
-alias や追加のシンボリックリンクは生成されません。`/workspaces` 配下のネストした
-パスでは、親ディレクトリはホスト側の親全体ではなく、`dev:dev` 所有の一時的な
-`tmpfs` として用意されます。
-
-### 2. Dev Container を起動する
-
-ホスト側のターミナルを使い、リポジトリのルートから実行します。
-
-```sh
-bash .devcontainer/prepare-mounts
-devcontainer up --workspace-folder .
-devcontainer exec --workspace-folder . bash
-```
-
-Dev Container クライアントは、起動時の `initializeCommand` からも `prepare-mounts` を実行します。後から `.devcontainer/allowlist.tsv` を更新した場合は、Dev Container に接続したターミナルではなく、ホスト側のターミナルで変更を反映します。
-
-```sh
-bash .devcontainer/prepare-mounts
-```
-
-このコマンドが失敗した場合は、allowlist を修正して再実行してください。以前の生成設定のまま Dev Container を再開・再作成してはいけません。成功した後、追加・削除を反映するためにコンテナを再作成します。
-
-- CLI: `devcontainer up --workspace-folder . --remove-existing-container`
-- VS Code: `Dev Containers: Rebuild Container` を実行
-- Zed: リモートプロジェクトを閉じ、ホスト側で上記の CLI コマンドを実行してから、`Project: Open Remote` で再度開く
-
-起動時には `initializeCommand` も実行されますが、マウントポリシーを変更した場合に明示的なコンテナ再作成を省略することはできません。このスクリプトは `.devcontainer/` 配下の Git で無視されるローカルファイルをアトミックに再生成します。生成ファイルをコミットしたり手で編集したりしないでください。allowlist だけを変更した場合、イメージの再ビルドは不要です。イメージや Compose 設定を変更した場合は、利用するクライアントが提供する再ビルド手順を使ってください。Dev Containers CLI のオプションは `devcontainer up --help` で確認できます。
-
-Docker Desktop では、新しく追加するリポジトリごとに、コンテナを再作成する前に File Sharing の許可を追加してください。複数のリポジトリを含む広い親ディレクトリは共有しないでください。
-
-再接続後は、workspace のターミナルから設定した宛先が存在することを確認してください。CLI では例えば次のように確認できます。
-
-```sh
-devcontainer exec --workspace-folder . bash -lc \
-  'test -d /workspaces/<destination> && ls -ld /workspaces/<destination>'
-```
-
-allowlist から削除した宛先が残っていないことも確認してください。
-
-### 3. クライアントを選ぶ
-
-- CLI: [Dev Containers CLI](https://github.com/devcontainers/cli) をインストールし、上記のコマンドを使います。
-- VS Code: [Dev Containers 拡張](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)をインストールし、`Dev Containers: Reopen in Container` を実行します。
-- Zed: このリポジトリを `Project: Open Remote` で開きます。
 
 ## 日常の使い方
 

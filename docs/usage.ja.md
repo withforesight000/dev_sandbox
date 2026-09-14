@@ -68,6 +68,8 @@ Dev Containers クライアントを実行するホストには `python3` が必
 allowlist の準備処理は Python の標準ライブラリだけを使い、サードパーティー
 パッケージを必要としません。
 
+## allowlist の変更を反映する
+
 `.devcontainer/allowlist.tsv` を変更したら、Dev Container に接続した
 ターミナルではなく、リポジトリのルートにいるホスト側のターミナルで
 次のコマンドを実行して変更を反映します。
