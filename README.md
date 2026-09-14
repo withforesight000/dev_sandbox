@@ -6,7 +6,11 @@
 
 `dev_sandbox` is a security-focused Dev Container for using AI coding agents such as Codex and Claude with selected local repositories. Its primary purpose is to keep unrelated host data and sensitive information out of the agent's reach while preserving a practical environment for inspecting code, running tests, and using Docker Compose.
 
-The sandbox workspace is available to the agent. Additional repositories become available only when you explicitly add them to a fail-closed allowlist. In the normal setup, the host home directory, SSH keys, cloud credentials, Docker configuration, and host Docker socket are not mounted into the container.
+The current repository is mounted into the `workspace` container and is
+available to the agent. Additional repositories become available only when
+you explicitly add them to a fail-closed allowlist. In the normal setup, the
+host home directory, SSH keys, cloud credentials, Docker configuration, and
+host Docker socket are not mounted into the container.
 
 ## Table of contents
 
@@ -30,36 +34,43 @@ The sandbox workspace is available to the agent. Additional repositories become 
 - Docker Desktop on macOS, or Docker Engine on Linux.
 - `python3` on the host for allowlist preparation.
 - A Dev Containers-compatible client such as the Dev Containers CLI, VS Code, or Zed.
-- File-sharing permission for only the allowlisted host paths when using Docker Desktop.
+- File-sharing permission for the current repository and each allowlisted host path when using Docker Desktop.
 
 ## Quick start
 
 ### 1. Configure the repository allowlist
 
-Edit `.devcontainer/allowlist.tsv`. Each row contains a host repository path, a tab, and its absolute path inside the containers:
+Edit `.devcontainer/allowlist.tsv`. Each row contains a host source and a
+container destination separated by one literal tab character (`U+0009`), not
+spaces. Host sources must be absolute paths to existing Git repository roots;
+do not use a broad parent directory containing multiple repositories.
+
+Host sources must be absolute, existing Git repository roots; do not use a broad parent directory. Both host sources and container destinations must be unique and non-nested. The main workspace does not need an allowlist row. These special source forms are also supported:
 
 ```text
-/Users/you/src/api	/workspaces/api
-/Users/you/src/shared-lib	/workspaces/shared-lib
+@workspace	/workspaces/current
+@workspace:/absolute/path/to/repository	/workspaces/explicit
+@workspace-relative:../shared-lib	/workspaces/shared-lib
 ```
 
-Use repository roots, not a broad parent directory. The host paths must exist, and both host paths and container destinations must be unique and non-nested. The main workspace does not need an allowlist row.
+`@workspace` refers to the current repository, `@workspace:/absolute/path/to/repository` names an explicit absolute source path, and `@workspace-relative:../shared-lib` resolves relative to the current repository. The resolved paths must still exist and satisfy the repository policy.
+
+Container destinations must be absolute and normalized. `/` and `/workspaces` are reserved, trailing slashes are not allowed, and destinations must be unique and non-nested.
 
 ### 2. Start the Dev Container
 
-Run these commands from a host terminal at the repository root:
+From a host terminal at the repository root, generate and validate the local
+Compose configuration:
 
 ```sh
 bash .devcontainer/prepare-mounts
-devcontainer up --workspace-folder .
-devcontainer exec --workspace-folder . bash
 ```
 
 The Dev Container client also invokes `prepare-mounts` through `initializeCommand`. When you update the allowlist later, follow the [update procedure](docs/usage.md#applying-allowlist-changes): validate it on the host, recreate the container, and then reconnect.
 
 ### 3. Choose your client
 
-- CLI: use the commands above.
+- CLI: run `devcontainer up --workspace-folder .`, then use `devcontainer exec --workspace-folder . bash`.
 - VS Code: run `Dev Containers: Reopen in Container` for the first connection.
 - Zed: use `Project: Open Remote` with this repository's Dev Container configuration.
 
@@ -128,9 +139,16 @@ In this setup, `workspace` is the work container, and the `docker` service is a 
 - The agent has control of the inner rootless Docker daemon and can create containers or mount paths that are visible inside that boundary.
 - The outer container runtime, the privileged `docker` service used to run rootless Docker, the host kernel, and any additional host mounts remain part of the deployment's trust assumptions.
 - SSH agent forwarding can authorize operations using keys available through the agent socket. Any workspace process can ask the relay to authenticate.
-- This project does not provide Docker Sandbox's microVM boundary, credential proxy, or deny-by-default network policy.
+- This project does not provide Docker Sandboxes' microVM boundary, credential proxy, or deny-by-default network policy.
 
 ## How it compares with Docker Sandboxes
+
+Docker Sandboxes is Docker's separate agent-oriented isolated development
+environment.
+It uses a per-sandbox microVM with a private Docker Engine and filesystem, and
+its security model includes host-side credential proxying and deny-by-default
+outbound TCP access. It is mentioned here as a comparison point; this project
+runs as a Dev Container and does not depend on Docker Sandboxes.
 
 See Docker's official [Sandboxes overview](https://docs.docker.com/ai/sandboxes/), [multiple workspaces](https://docs.docker.com/ai/sandboxes/usage/#multiple-workspaces), [environment files](https://docs.docker.com/ai/sandboxes/configuration/environment-files/), [security model](https://docs.docker.com/ai/sandboxes/security/), and [security defaults](https://docs.docker.com/ai/sandboxes/security/defaults/).
 

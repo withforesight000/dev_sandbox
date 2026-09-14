@@ -29,6 +29,14 @@ daemon. The Dev Containers client mounts the current repository into the
 `@workspace` row can also add the current repository to the generated mounts,
 including the `docker` service.
 
+The inner daemon lets repositories use Docker and Compose without giving the
+agent control of the outer Docker daemon. It runs rootless as the unprivileged
+`dev` user, reducing the privileges available to the daemon and its containers
+if an inner workload is compromised. The outer Docker socket is intentionally
+not mounted: exposing it would let the agent control the outer daemon and
+undermine the repository-scoped boundary. The workspace uses the socket
+provided by the dedicated `docker` service instead.
+
 Changing a repository's container destination only organizes its in-container
 view. It does not reduce the access the agent has to that repository's files.
 The configured destination is used directly; no navigation alias is generated.
@@ -41,6 +49,12 @@ validation scripts, including `tests/validate.sh`, must therefore use synthetic
 temporary repositories with neutral names such as `repo-alpha` and `repo-beta`.
 They must not run the production preparation command against a user's personal
 allowlist or publish its generated output.
+
+The Dev Containers client invokes `prepare-mounts` on the host through
+`initializeCommand` before the Dev Container starts. Treat changes to the
+preparation code and allowlist as host-sensitive: review them before reopening
+the Dev Container, because path validation cannot establish that a change was
+approved by a reviewer.
 
 ## What this protects
 
@@ -87,11 +101,17 @@ the intended host-side boundary.
 ### Outer container runtime
 
 The Docker daemon container is `privileged` at the outer container-runtime
-level because RootlessKit needs namespace setup support. The daemon itself and
-the containers it creates run as the unprivileged `dev` user. The outer Docker
-socket is not mounted into the workspace, and the daemon container receives
-only the explicitly allowlisted repository paths. Its data root and Unix
-socket are isolated in named volumes.
+level because RootlessKit needs namespace setup support. The daemon process
+runs as the unprivileged `dev` user, and containers it creates use rootless
+user namespaces rather than host-root privileges. The outer Docker socket is
+not mounted into either the `workspace` or `docker` service, and the daemon
+container receives only the explicitly allowlisted repository paths. Its data
+root and Unix socket are isolated in named volumes.
+
+The outer `privileged` and `seccomp:unconfined` settings support RootlessKit and
+the inner daemon; rootless operation applies to the inner daemon and its
+workloads, not to the outer service. The outer runtime and host kernel therefore
+remain part of the trust boundary.
 
 The outer container runtime, the host kernel, the privileged `docker` service,
 the Dev Container image, and any additional host mounts remain deployment trust
@@ -106,12 +126,17 @@ compatibility symlink; it does not reach the outer daemon. Each repository's
 Compose workflow must still be tested. A workflow that genuinely requires the
 outer daemon is not compatible with this boundary.
 
+The inner socket is still a powerful Docker management API. A container that
+receives it can control the inner daemon and use paths visible to that daemon,
+including allowlisted repositories. Being separate from the outer socket does
+not make the inner socket harmless.
+
 ### Network access
 
-This project does not provide Docker Sandboxes' deny-by-default outbound
-network policy. Treat external network access as a separate trust concern and
-do not assume that repository allowlisting limits what the agent can send to
-external services.
+This project does not provide the deny-by-default outbound network policy of
+Docker Sandboxes, Docker's separate microVM-based sandbox product. Treat
+external network access as a separate trust concern and do not assume that
+repository allowlisting limits what the agent can send to external services.
 
 ## Agent state and credentials
 

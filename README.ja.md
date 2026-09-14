@@ -6,7 +6,11 @@
 
 `dev_sandbox` は、Codex や Claude などの AI コーディングエージェントが、選択したローカルリポジトリを対象に作業するための Dev Container です。主な目的は、コードの調査・テスト実行・Docker Compose の利用に必要な実用性を保ちながら、関係のないホスト上のデータや機密情報をエージェントに公開しないことです。
 
-現在の workspace はエージェントから利用できます。追加のリポジトリは allowlist に明示的に登録した場合だけ利用できます。allowlist の検証に失敗した場合は、安全側に倒して起動を拒否します。通常の構成では、ホストのホームディレクトリ、SSH 鍵、クラウド認証情報、Docker 設定、ホストの Docker socket はコンテナにマウントされません。
+現在のリポジトリは `workspace` コンテナにマウントされ、エージェントから利用できます。
+追加のリポジトリは allowlist に明示的に登録した場合だけ利用できます。allowlist の
+検証に失敗した場合は、安全側に倒して起動を拒否します。通常の構成では、ホストの
+ホームディレクトリ、SSH 鍵、クラウド認証情報、Docker 設定、ホストの Docker socket
+はコンテナにマウントされません。
 
 ## 目次
 
@@ -30,36 +34,43 @@
 - macOS では Docker Desktop、Linux では Docker Engine
 - allowlist の生成・検証に使うホスト上の `python3`
 - Dev Containers CLI、VS Code、Zed など Dev Container に対応したクライアント
-- Docker Desktop を使う場合は、allowlist に登録したホストパスだけを対象にしたファイル共有設定
+- Docker Desktop を使う場合は、現在のリポジトリと allowlist に登録した各ホストパスを対象にしたファイル共有設定
 
 ## クイックスタート
 
 ### 1. リポジトリの allowlist を設定する
 
-`.devcontainer/allowlist.tsv` を編集します。各行には、ホスト上のリポジトリパスとコンテナ内の絶対パスを、タブ文字で区切って記述します。
+`.devcontainer/allowlist.tsv` を編集します。各行には、ホスト側の source と
+コンテナ側の宛先を、スペースではなく1つのリテラルなタブ文字（`U+0009`）で
+区切って記述します。ホスト側の source は、実在する Git リポジトリのルートを
+示す絶対パスである必要があります。複数のリポジトリを含む広い親ディレクトリは
+指定しないでください。
+
+ホスト側の source は絶対パスで、実在する Git リポジトリのルートである必要があります。複数のリポジトリを含む広い親ディレクトリは指定しないでください。ホスト側の source とコンテナ側の宛先には、重複や入れ子がない必要があります。メインの workspace は allowlist に登録する必要がありません。次の特殊な source 形式も使えます。
 
 ```text
-/Users/you/src/api	/workspaces/api
-/Users/you/src/shared-lib	/workspaces/shared-lib
+@workspace	/workspaces/current
+@workspace:/absolute/path/to/repository	/workspaces/explicit
+@workspace-relative:../shared-lib	/workspaces/shared-lib
 ```
 
-広い親ディレクトリではなく、リポジトリのルートを指定してください。ホストパスは存在し、ホスト側パスとコンテナ側の宛先の両方に重複や入れ子がない必要があります。メインの workspace は allowlist に登録する必要がありません。
+`@workspace` は現在のリポジトリを指し、`@workspace:/absolute/path/to/repository` は明示した絶対パスを source として指定します。`@workspace-relative:../shared-lib` は現在のリポジトリを基準に解決されます。解決後のパスも存在し、リポジトリのポリシーを満たしていなければなりません。
+
+コンテナ側の宛先は、正規化された絶対パスである必要があります。`/` と `/workspaces` は予約されており、末尾の `/` は使えません。宛先には重複や入れ子がない必要があります。
 
 ### 2. Dev Container を起動する
 
-ホスト側のターミナルを使い、リポジトリのルートから次のコマンドを実行します。
+ホスト側のターミナルを使い、リポジトリのルートから次のコマンドを実行して、ローカルの Compose 設定を生成・検証します。
 
 ```sh
 bash .devcontainer/prepare-mounts
-devcontainer up --workspace-folder .
-devcontainer exec --workspace-folder . bash
 ```
 
 Dev Container クライアントは `initializeCommand` からも `prepare-mounts` を実行します。後から allowlist を更新する場合は、ホスト上で検証し、コンテナを再作成してから再接続します。詳しくは [allowlist の変更を反映する手順](docs/usage.ja.md#allowlist-の変更を反映する) を参照してください。
 
 ### 3. クライアントを選ぶ
 
-- CLI: 上記のコマンドを使います。
+- CLI: `devcontainer up --workspace-folder .` を実行し、その後 `devcontainer exec --workspace-folder . bash` を使います。
 - VS Code: 初回接続では `Dev Containers: Reopen in Container` を実行します。
 - Zed: このリポジトリの Dev Container 設定を `Project: Open Remote` で開きます。
 
@@ -131,6 +142,12 @@ allowlist では、ホスト上のパスとコンテナ内のマウント先を�
 - 本プロジェクトは、Docker Sandboxes が提供する microVM による隔離境界、認証情報プロキシ、通信を原則拒否するネットワークポリシー（deny-by-default）を提供しません。
 
 ## Docker Sandboxes との比較
+
+Docker Sandboxes は、Docker が別途提供するエージェント向けの隔離開発環境です。
+サンドボックスごとに microVM、専用の Docker Engine とファイルシステムを使い、
+セキュリティモデルとしてホスト側の認証情報プロキシと deny-by-default の外向き
+TCP 通信も提供します。ここでは比較対象として扱うだけで、本プロジェクトが
+Docker Sandboxes に依存するわけではありません。
 
 Docker 公式ドキュメントの [Sandboxes 概要](https://docs.docker.com/ai/sandboxes/)、[複数の workspace](https://docs.docker.com/ai/sandboxes/usage/#multiple-workspaces)、[環境ファイル](https://docs.docker.com/ai/sandboxes/configuration/environment-files/)、[セキュリティモデル](https://docs.docker.com/ai/sandboxes/security/)、[デフォルトのセキュリティ設定](https://docs.docker.com/ai/sandboxes/security/defaults/) も参照してください。
 
