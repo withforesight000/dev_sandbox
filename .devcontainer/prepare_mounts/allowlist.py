@@ -8,7 +8,11 @@ from pathlib import Path
 from typing import TextIO
 
 from .errors import AllowlistError
-from .models import AllowlistedRepository, ContainerMountPath
+from .models import (
+    FIXED_CONTAINER_MOUNT_PATHS,
+    AllowlistedRepository,
+    ContainerMountPath,
+)
 from .ports import CommandRunner
 
 
@@ -86,10 +90,22 @@ class AllowlistValidator:
                 source=self._resolve_source(source_spec, repo_root),
                 target=ContainerMountPath.parse(target),
             )
+            self._validate_fixed_mount_relationship(repository)
             self._validate_repository(repository, repo_root)
             self._validate_relationships(repository, repositories)
             repositories.append(repository)
         return repositories
+
+    @staticmethod
+    def _validate_fixed_mount_relationship(
+        repository: AllowlistedRepository,
+    ) -> None:
+        for fixed_path in FIXED_CONTAINER_MOUNT_PATHS:
+            if repository.target.conflicts_with(fixed_path):
+                raise AllowlistError(
+                    f"container destination {repository.target} conflicts with "
+                    f"fixed mount path {fixed_path}"
+                )
 
     def _resolve_source(
         self,

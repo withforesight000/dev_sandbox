@@ -11,7 +11,7 @@ from ..errors import AllowlistError
 
 @dataclass(frozen=True)
 class ContainerMountPath:
-    """An absolute, normalized, non-reserved container mount path."""
+    """An absolute and normalized container mount path."""
 
     value: str
 
@@ -44,6 +44,15 @@ class ContainerMountPath:
         existing = PurePosixPath(other.value)
         return candidate != existing and existing in candidate.parents
 
+    def conflicts_with(self, other: ContainerMountPath) -> bool:
+        """Return whether either path would obscure or contain the other."""
+
+        return (
+            self == other
+            or self.is_nested_under(other)
+            or other.is_nested_under(self)
+        )
+
     def __str__(self) -> str:
         return self.value
 
@@ -65,3 +74,18 @@ class ContainerMountPath:
             raise AllowlistError("invalid control character in container mount path")
         if "//" in value or posixpath.normpath(value) != value:
             raise AllowlistError(f"container mount path must be normalized: {value}")
+
+
+FIXED_CONTAINER_MOUNT_PATHS: tuple[ContainerMountPath, ...] = tuple(
+    ContainerMountPath.parse(value)
+    for value in (
+        "/docker-socket",
+        "/tmp",
+        "/home/dev/.cache/mise",
+        "/home/dev/.local/share/mise",
+        "/home/dev/.local/share/docker",
+        "/home/dev/.codex",
+        "/home/dev/.claude",
+        "/run/ssh-agent",
+    )
+)

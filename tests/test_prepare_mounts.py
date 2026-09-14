@@ -398,11 +398,116 @@ class PrepareMountsTests(unittest.TestCase):
         self.assertEqual(str(outer), "/workspaces/repository")
         self.assertTrue(nested.is_nested_under(outer))
         self.assertFalse(outer.is_nested_under(nested))
+        self.assertTrue(outer.conflicts_with(outer))
+        self.assertTrue(nested.conflicts_with(outer))
+        self.assertTrue(outer.conflicts_with(nested))
+        self.assertFalse(
+            outer.conflicts_with(
+                prepare_mounts.ContainerMountPath.parse("/workspaces/other")
+            )
+        )
         with self.assertRaisesRegex(
             prepare_mounts.AllowlistError,
             "reserved for the workspace root",
         ):
             prepare_mounts.ContainerMountPath.parse("/workspaces")
+
+    def test_allowlist_rejects_exact_fixed_mount_destination(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory) / "repo-alpha"
+            root.mkdir()
+            allowlist = root / "allowlist.tsv"
+            allowlist.write_text(
+                "@workspace\t/tmp\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                prepare_mounts.AllowlistError,
+                r"container destination /tmp conflicts with fixed mount path /tmp",
+            ) as error:
+                prepare_mounts.AllowlistValidator(FakeCommandRunner("")).parse(
+                    allowlist,
+                    root,
+                )
+
+            self.assertNotIn(str(root), str(error.exception))
+
+    def test_allowlist_rejects_destination_nested_under_fixed_mount(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory) / "repo-alpha"
+            root.mkdir()
+            allowlist = root / "allowlist.tsv"
+            allowlist.write_text(
+                "@workspace\t/home/dev/.codex/project\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                prepare_mounts.AllowlistError,
+                "container destination /home/dev/.codex/project conflicts with "
+                "fixed mount path /home/dev/.codex",
+            ):
+                prepare_mounts.AllowlistValidator(FakeCommandRunner("")).parse(
+                    allowlist,
+                    root,
+                )
+
+    def test_allowlist_rejects_destination_parent_of_fixed_mount(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory) / "repo-alpha"
+            root.mkdir()
+            allowlist = root / "allowlist.tsv"
+            allowlist.write_text(
+                "@workspace\t/home/dev/.local/share\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                prepare_mounts.AllowlistError,
+                "container destination /home/dev/.local/share conflicts with "
+                "fixed mount path /home/dev/.local/share/mise",
+            ):
+                prepare_mounts.AllowlistValidator(FakeCommandRunner("")).parse(
+                    allowlist,
+                    root,
+                )
+
+    def test_allowlist_rejects_destination_under_optional_ssh_relay_mount(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory) / "repo-alpha"
+            root.mkdir()
+            allowlist = root / "allowlist.tsv"
+            allowlist.write_text(
+                "@workspace\t/run/ssh-agent/project\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                prepare_mounts.AllowlistError,
+                "container destination /run/ssh-agent/project conflicts with "
+                "fixed mount path /run/ssh-agent",
+            ):
+                prepare_mounts.AllowlistValidator(FakeCommandRunner("")).parse(
+                    allowlist,
+                    root,
+                )
+
+    def test_allowlist_allows_workspaces_descendants(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory) / "repo-alpha"
+            root.mkdir()
+            allowlist = root / "allowlist.tsv"
+            allowlist.write_text(
+                "@workspace\t/workspaces/repo-alpha\n",
+                encoding="utf-8",
+            )
+
+            repositories = prepare_mounts.AllowlistValidator(
+                FakeCommandRunner("")
+            ).parse(allowlist, root)
+
+            self.assertEqual(str(repositories[0].target), "/workspaces/repo-alpha")
 
     def test_dns_servers_are_immutable_and_renderable(self) -> None:
         servers = prepare_mounts.DnsServers.from_detected(

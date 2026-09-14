@@ -13,6 +13,7 @@ from .models import (
     AllowlistedRepository,
     ContainerMountPath,
     DnsServers,
+    FIXED_CONTAINER_MOUNT_PATHS,
     PreparationPaths,
 )
 from .ports import CommandRunner, GeneratedFileWriter, ResolverDetector
@@ -36,6 +37,7 @@ __all__ = [
     "ComposeOverrideRenderer",
     "ContainerMountPath",
     "DnsServers",
+    "FIXED_CONTAINER_MOUNT_PATHS",
     "GeneratedFileWriter",
     "HostResolverDetector",
     "PreparationPaths",
